@@ -37,7 +37,7 @@ El proyecto está construido bajo el paradigma de **Electron**, con una clara se
 
 ## Instalación Rápida (Un Clic - Windows PowerShell)
 
-Si estás en Windows, puedes configurar e instalar todo tu entorno (incluyendo Node.js, npm, Git, dependencias del proyecto y la base de datos local) de forma 100% automatizada ejecutando el siguiente comando en tu PowerShell:
+Si estás en Windows, puedes configurar e instalar todo tu entorno (incluyendo Node.js, npm, descarga directa del proyecto y la base de datos local) de forma 100% automatizada ejecutando el siguiente comando en tu PowerShell:
 
 ```powershell
 powershell -c "irm https://raw.githubusercontent.com/wilkinbarban/AI-Workspace-Manager/main/install.ps1 | iex"
@@ -46,10 +46,10 @@ powershell -c "irm https://raw.githubusercontent.com/wilkinbarban/AI-Workspace-M
 > [!NOTE]
 > **¿Qué realiza este script automatizado?**
 > * **Validación de Entorno:** Comprueba si cuentas con Node.js (versión >= 20) y npm (versión >= 10) instalados en tu sistema.
-> * **Instalación de Dependencias del Sistema:** Si falta Node.js, npm o Git, los descarga e instala de forma silenciosa utilizando **winget** de Microsoft.
+> * **Instalación de Dependencias del Sistema:** Si falta Node.js o npm, los descarga e instala de forma silenciosa utilizando **winget** de Microsoft.
 > * **Recarga Dinámica de PATH:** Actualiza las variables de entorno de la sesión activa de PowerShell para utilizar inmediatamente los nuevos comandos sin necesidad de reiniciar la consola.
-> * **Clonación del Repositorio:** Si se ejecuta fuera de la carpeta del proyecto, clona automáticamente el repositorio oficial de GitHub y entra al directorio.
-> * **Configuración del Proyecto:** Ejecuta de forma secuencial la instalación de paquetes (`npm install`), genera el cliente Prisma (`npm run prisma:generate`) y despliega la base de datos local SQLite (`npm run db:push`).
+> * **Descarga y Extracción Directa:** Descarga el código fuente en un archivo ZIP directamente de GitHub y lo extrae de forma limpia en tu **Escritorio** (`AI-Workspace-Manager`). ¡No necesitas tener instalado Git!
+> * **Configuración del Proyecto:** Accede a la carpeta en tu escritorio y ejecuta la instalación de paquetes (`npm install`), genera el cliente Prisma (`npm run prisma:generate`) y despliega la base de datos local SQLite (`npm run db:push`).
 > * **Arranque:** Inicia de forma automática el servidor de desarrollo (`npm run dev`).
 
 ## Instalación y Desarrollo Manual

@@ -1,9 +1,9 @@
-# ─── AI Workspace Manager - Windows One-Click Installer ──────────────────────
+# ─── AI Workspace Manager - Windows One-Click Installer (ZIP Method) ─────────
 #
 # This script automates the environment setup and installation of AI Workspace Manager.
-# It validates dependencies (Node.js >= 20, npm >= 10, Git), installs them via winget
-# if missing, configures environment variables, restores packages, and launches
-# the application in development mode.
+# It validates Node.js and npm, installs them via winget if missing, downloads the
+# repository source code as a ZIP file, extracts it directly onto the user's Desktop,
+# installs project dependencies, and launches the app in development mode.
 #
 # Usage:
 #   powershell -c "irm https://raw.githubusercontent.com/wilkinbarban/AI-Workspace-Manager/main/install.ps1 | iex"
@@ -45,24 +45,6 @@ function Test-NpmVersion {
         }
     }
     return $false
-}
-
-# ─── Check & Install Git ─────────────────────────────────────────────────────
-if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-    Write-Host "[!] Git no está instalado. Instalándolo vía winget..." -ForegroundColor Yellow
-    try {
-        Start-Process winget -ArgumentList "install --id Git.Git -e --silent --accept-source-agreements --accept-package-agreements" -NoNewWindow -Wait
-        Refresh-SessionPath
-        if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-            throw "No se pudo encontrar Git después de la instalación."
-        }
-        Write-Host "[+] Git instalado correctamente." -ForegroundColor Green
-    } catch {
-        Write-Host "[-] Error al instalar Git de forma automática. Por favor instálalo desde git-scm.com y vuelve a correr el script." -ForegroundColor Red
-        Exit 1
-    }
-} else {
-    Write-Host "[+] Git detectado correctamente." -ForegroundColor Green
 }
 
 # ─── Check & Install Node.js ─────────────────────────────────────────────────
@@ -120,35 +102,68 @@ Write-Host ""
 Write-Host "[*] Comprobación de dependencias del sistema completada con éxito." -ForegroundColor Green
 Write-Host ""
 
-# ─── Cloning or entering repository ──────────────────────────────────────────
-$inRepo = $false
-if (Test-Path "package.json") {
-    $pkgJson = Get-Content "package.json" -Raw | ConvertFrom-Json -ErrorAction SilentlyContinue
-    if ($pkgJson -and $pkgJson.name -eq "ai-workspace-manager") {
-        $inRepo = $true
-    }
+# ─── Resolving Desktop Path and Downloading ZIP ──────────────────────────────
+$desktop = [System.Environment]::GetFolderPath("Desktop")
+$targetFolder = Join-Path $desktop "AI-Workspace-Manager"
+
+Write-Host "[*] Resolviendo ruta de instalación en el Escritorio..." -ForegroundColor Cyan
+Write-Host "[*] Destino: $targetFolder" -ForegroundColor Gray
+
+# Create temporary paths for downloading and extracting
+$tempZip = Join-Path $env:TEMP "AI-Workspace-Manager.zip"
+$tempExtractDir = Join-Path $env:TEMP "AI-Workspace-Manager-TempExt"
+
+# Clean up any leftover temporary files/folders from previous attempts
+if (Test-Path $tempZip) { Remove-Item $tempZip -Force }
+if (Test-Path $tempExtractDir) { Remove-Item $tempExtractDir -Recurse -Force }
+
+Write-Host "[*] Descargando código fuente en formato ZIP desde GitHub..." -ForegroundColor Cyan
+try {
+    # Force use TLS 1.2/1.3 for download security
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+    
+    Invoke-WebRequest -Uri "https://github.com/wilkinbarban/AI-Workspace-Manager/archive/refs/heads/main.zip" -OutFile $tempZip -UseBasicParsing
+    Write-Host "[+] Descarga completada." -ForegroundColor Green
+} catch {
+    Write-Host "[-] Error al descargar el archivo ZIP desde GitHub. Verifica tu conexión a internet." -ForegroundColor Red
+    Exit 1
 }
 
-if ($inRepo) {
-    Write-Host "[*] Detectado directorio del proyecto. Configurando en la ubicación actual..." -ForegroundColor Cyan
-} else {
-    Write-Host "[*] No se detectó el directorio del proyecto en la ubicación actual." -ForegroundColor Yellow
-    Write-Host "[*] Clonando repositorio 'AI-Workspace-Manager' desde GitHub..." -ForegroundColor Cyan
-    
-    if (Test-Path "AI-Workspace-Manager") {
-        Write-Host "[!] Ya existe un directorio 'AI-Workspace-Manager'. Accediendo a él..." -ForegroundColor Yellow
-        Set-Location "AI-Workspace-Manager"
-    } else {
-        try {
-            git clone "https://github.com/wilkinbarban/AI-Workspace-Manager.git"
-            Set-Location "AI-Workspace-Manager"
-            Write-Host "[+] Clonado completado." -ForegroundColor Green
-        } catch {
-            Write-Host "[-] Error al clonar el repositorio." -ForegroundColor Red
-            Exit 1
-        }
-    }
+Write-Host "[*] Extrayendo archivos..." -ForegroundColor Cyan
+try {
+    # Expand-Archive extracts zip into $tempExtractDir
+    New-Item -ItemType Directory -Path $tempExtractDir -Force | Out-Null
+    Expand-Archive -Path $tempZip -DestinationPath $tempExtractDir -Force
+    Write-Host "[+] Extracción completada." -ForegroundColor Green
+} catch {
+    Write-Host "[-] Error al extraer el archivo ZIP descargado." -ForegroundColor Red
+    Exit 1
 }
+
+# The extracted directory name inside the ZIP is "AI-Workspace-Manager-main"
+$extractedFolder = Join-Path $tempExtractDir "AI-Workspace-Manager-main"
+
+Write-Host "[*] Moviendo la carpeta al Escritorio..." -ForegroundColor Cyan
+try {
+    # If the target folder on the Desktop already exists, delete it first for a clean state
+    if (Test-Path $targetFolder) {
+        Write-Host "[!] Se detectó una carpeta existente de AI-Workspace-Manager en el Escritorio. Eliminándola para una instalación limpia..." -ForegroundColor Yellow
+        Remove-Item $targetFolder -Recurse -Force
+    }
+
+    Move-Item -Path $extractedFolder -Destination $targetFolder -Force
+    Write-Host "[+] Carpeta instalada en el Escritorio correctamente." -ForegroundColor Green
+} catch {
+    Write-Host "[-] Error al mover la carpeta al Escritorio. Verifica que no esté abierta en otra aplicación." -ForegroundColor Red
+    Exit 1
+} finally {
+    # Clean up temporary zip and temp directory
+    if (Test-Path $tempZip) { Remove-Item $tempZip -Force }
+    if (Test-Path $tempExtractDir) { Remove-Item $tempExtractDir -Recurse -Force }
+}
+
+# Navigate into the project folder on the Desktop
+Set-Location $targetFolder
 
 # ─── Install Project Dependencies ────────────────────────────────────────────
 Write-Host ""
@@ -168,6 +183,7 @@ Write-Host "==================================================" -ForegroundColor
 Write-Host "   ¡Entorno configurado e instalado con éxito!    " -ForegroundColor Green
 Write-Host "==================================================" -ForegroundColor Green
 Write-Host ""
+Write-Host "[*] Carpeta del proyecto: $targetFolder" -ForegroundColor Gray
 Write-Host "[*] Iniciando la aplicación en modo desarrollo (npm run dev)..." -ForegroundColor Yellow
 Write-Host "[*] Presiona Ctrl+C en esta terminal para detener la aplicación." -ForegroundColor Gray
 Write-Host ""
