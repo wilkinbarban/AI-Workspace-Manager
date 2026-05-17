@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Project {
+  id          String          @id @default(cuid())
+  name        String
+  path        String          @unique
+  language    String?
+  framework   String?
+  healthScore Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  scans       WorkspaceScan[]
+  tasks       Task[]
+  memories    MemoryEntry[]
+  reports     Report[]
+  fileChanges FileChange[]
+  commandLogs CommandLog[]
+}
+
+model WorkspaceScan {
+  id                  String   @id @default(cuid())
+  projectId           String
+  project             Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  summaryJson         String
+  treeJson            String
+  dependenciesJson    String
+  problemsJson        String
+  recommendationsJson String
+  healthJson          String
+  createdAt           DateTime @default(now())
+
+  @@index([projectId, createdAt])
+}
+
+model AIProvider {
+  id                 String       @id @default(cuid())
+  name               String
+  type               String
+  authType           String       @default("bearer")
+  baseUrl            String?
+  model              String
+  maskedSecret       String?
+  isDefault          Boolean      @default(false)
+  enabled            Boolean      @default(true)
+  monthlyTokenLimit  Int?
+  taskDefaultsJson   String?
+  metadataJson       String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  usageLogs          AIUsageLog[]
+
+  @@index([type])
+  @@index([isDefault])
+}
+
+model AIUsageLog {
+  id               String      @id @default(cuid())
+  providerId       String?
+  provider         AIProvider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  providerName     String
+  providerType     String
+  model            String
+  taskType         String
+  inputTokens      Int?
+  outputTokens     Int?
+  totalTokens      Int?
+  estimatedCostUsd Float?
+  remainingTokens  Int?
+  isEstimate       Boolean     @default(true)
+  createdAt        DateTime    @default(now())
+
+  @@index([providerId, createdAt])
+  @@index([providerType, model])
+  @@index([taskType, createdAt])
+}
+
+model Task {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  status      String   @default("pending")
+  source      String   @default("manual")
+  riskLevel   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId, status])
+}
+
+model MemoryEntry {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type         String
+  content      String
+  metadataJson String?
+  createdAt    DateTime @default(now())
+
+  @@index([projectId, createdAt])
+}
+
+model FileChange {
+  id         String   @id @default(cuid())
+  projectId  String?
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  path       String
+  action     String
+  diff       String?
+  backupPath String?
+  createdAt  DateTime @default(now())
+}
+
+model CommandLog {
+  id        String   @id @default(cuid())
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  command   String
+  cwd       String?
+  status    String
+  exitCode  Int?
+  output    String?
+  createdAt DateTime @default(now())
+}
+
+model Report {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  summary     String
+  payloadJson String
+  createdAt   DateTime @default(now())
+
+  @@index([projectId, createdAt])
+}
+
+model Settings {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  valueJson String
+  updatedAt DateTime @updatedAt
+}

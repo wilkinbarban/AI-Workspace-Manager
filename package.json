@@ -1,0 +1,60 @@
+{
+  "name": "ai-workspace-manager",
+  "version": "0.1.0",
+  "description": "Desktop control center to analyze, document, organize and improve software workspaces with AI.",
+  "private": true,
+  "type": "module",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "web:dev": "vite --config vite.web.config.ts",
+    "web:build": "vite build --config vite.web.config.ts",
+    "build": "npm run typecheck && electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint . --max-warnings 0",
+    "test": "vitest run",
+    "prisma:generate": "prisma generate --schema src/database/prisma/schema.prisma",
+    "prisma:migrate": "prisma migrate dev --schema src/database/prisma/schema.prisma",
+    "prisma:studio": "prisma studio --schema src/database/prisma/schema.prisma",
+    "db:push": "prisma db push --schema src/database/prisma/schema.prisma",
+    "electron:install": "node node_modules/electron/install.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "axios": "^1.16.1",
+    "chokidar": "^5.0.0",
+    "dotenv": "^17.4.2",
+    "fast-glob": "^3.3.3",
+    "fs-extra": "^11.3.5",
+    "pino": "^10.3.1",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "simple-git": "^3.36.0",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.13"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@tailwindcss/vite": "^4.3.0",
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^25.7.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^42.0.1",
+    "electron-vite": "^5.0.0",
+    "eslint": "^10.3.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "prisma": "^6.19.3",
+    "tailwindcss": "^4.3.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.3",
+    "vite": "^7.3.3",
+    "vitest": "^4.1.6"
+  },
+  "optionalDependencies": {
+    "keytar": "^7.9.0"
+  }
+}
