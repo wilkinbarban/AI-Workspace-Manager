@@ -174,11 +174,9 @@ if (-not (Test-Path ".env")) {
 # ─── Install Project Dependencies ────────────────────────────────────────────
 Write-Host ""
 Write-Host "[*] 1. Instalando dependencias del proyecto (npm install)..." -ForegroundColor Cyan
-& npm install --include=dev
-
-Write-Host ""
-Write-Host "[*] Forzando instalación local de Prisma v6 y Electron-Vite..." -ForegroundColor Cyan
-& npm install -D prisma@6.19.3 electron-vite@5.0.0 --include=dev
+# Forzamos explícitamente el modo desarrollo para evitar que Windows (NODE_ENV=production) omita paquetes
+$env:NODE_ENV="development"
+& npm install
 
 Write-Host ""
 Write-Host "[*] 2. Generando cliente de base de datos local (Prisma v6)..." -ForegroundColor Cyan
