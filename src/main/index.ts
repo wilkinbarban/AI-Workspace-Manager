@@ -19,6 +19,7 @@ function createWindow(): void {
     show: false,
     title: 'AI Workspace Manager',
     backgroundColor: '#f5f7fb',
+    icon: path.join(app.getAppPath(), 'resources/icon.png'),
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.mjs'),
       contextIsolation: true,
