@@ -171,20 +171,35 @@ if (-not (Test-Path ".env")) {
     Copy-Item ".env.example" ".env" -Force
 }
 
+# ─── Limpieza previa para garantizar instalación fresca ──────────────────────
+# El ZIP trae un package-lock.json de otra máquina que hace que npm no instale nada.
+# Eliminarlo fuerza a npm a resolver todas las dependencias desde cero.
+Write-Host ""
+Write-Host "[*] Eliminando package-lock.json para forzar instalación fresca..." -ForegroundColor Cyan
+if (Test-Path "package-lock.json") { Remove-Item "package-lock.json" -Force }
+if (Test-Path "node_modules") {
+    Write-Host "[!] Eliminando node_modules previo..." -ForegroundColor Yellow
+    Remove-Item "node_modules" -Recurse -Force
+}
+
 # ─── Install Project Dependencies ────────────────────────────────────────────
 Write-Host ""
-Write-Host "[*] 1. Instalando dependencias del proyecto (npm install)..." -ForegroundColor Cyan
-# Forzamos explícitamente el modo desarrollo para evitar que Windows (NODE_ENV=production) omita paquetes
-$env:NODE_ENV="development"
+Write-Host "[*] 1. Instalando todas las dependencias del proyecto..." -ForegroundColor Cyan
+$env:NODE_ENV = "development"
 & npm install
 
 Write-Host ""
-Write-Host "[*] 2. Generando cliente de base de datos local (Prisma v6)..." -ForegroundColor Cyan
-& npx --no-install prisma generate --schema src/database/prisma/schema.prisma
+Write-Host "[*] 2. Instalando explícitamente Prisma CLI y @prisma/client v6..." -ForegroundColor Cyan
+& npm install --save-dev prisma@6.19.3
+& npm install @prisma/client@6.19.3
 
 Write-Host ""
-Write-Host "[*] 3. Aplicando esquema local a SQLite..." -ForegroundColor Cyan
-& npx --no-install prisma db push --schema src/database/prisma/schema.prisma
+Write-Host "[*] 3. Generando cliente de base de datos local (Prisma v6)..." -ForegroundColor Cyan
+& .\node_modules\.bin\prisma generate --schema src/database/prisma/schema.prisma
+
+Write-Host ""
+Write-Host "[*] 4. Aplicando esquema local a SQLite..." -ForegroundColor Cyan
+& .\node_modules\.bin\prisma db push --schema src/database/prisma/schema.prisma
 
 Write-Host ""
 Write-Host "==================================================" -ForegroundColor Green
@@ -192,9 +207,9 @@ Write-Host "   ¡Entorno configurado e instalado con éxito!    " -ForegroundCol
 Write-Host "==================================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "[*] Carpeta del proyecto: $targetFolder" -ForegroundColor Gray
-Write-Host "[*] Iniciando la aplicación en modo desarrollo (npm run dev)..." -ForegroundColor Yellow
+Write-Host "[*] Iniciando la aplicación en modo desarrollo..." -ForegroundColor Yellow
 Write-Host "[*] Presiona Ctrl+C en esta terminal para detener la aplicación." -ForegroundColor Gray
 Write-Host ""
 
-# Launch dev server
-& npm run dev
+# Launch via local electron-vite binary to bypass global PATH conflicts
+& .\node_modules\.bin\electron-vite dev
