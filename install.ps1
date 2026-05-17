@@ -177,12 +177,16 @@ Write-Host "[*] 1. Instalando dependencias del proyecto (npm install)..." -Foreg
 & npm install --include=dev
 
 Write-Host ""
-Write-Host "[*] 2. Generando cliente de base de datos local (npm run prisma:generate)..." -ForegroundColor Cyan
-& npm run prisma:generate
+Write-Host "[*] Forzando instalación local de Prisma v6 y Electron-Vite..." -ForegroundColor Cyan
+& npm install -D prisma@6.19.3 electron-vite@5.0.0 --include=dev
 
 Write-Host ""
-Write-Host "[*] 3. Aplicando migraciones y esquema local (npm run db:push)..." -ForegroundColor Cyan
-& npm run db:push
+Write-Host "[*] 2. Generando cliente de base de datos local (Prisma v6)..." -ForegroundColor Cyan
+& npx --no-install prisma generate --schema src/database/prisma/schema.prisma
+
+Write-Host ""
+Write-Host "[*] 3. Aplicando esquema local a SQLite..." -ForegroundColor Cyan
+& npx --no-install prisma db push --schema src/database/prisma/schema.prisma
 
 Write-Host ""
 Write-Host "==================================================" -ForegroundColor Green
