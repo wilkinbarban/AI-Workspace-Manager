@@ -165,6 +165,12 @@ try {
 # Navigate into the project folder on the Desktop
 Set-Location $targetFolder
 
+# ─── Configure Environment Variables (.env) ──────────────────────────────────
+if (-not (Test-Path ".env")) {
+    Write-Host "[*] Creando archivo de variables de entorno (.env) a partir de .env.example..." -ForegroundColor Cyan
+    Copy-Item ".env.example" ".env" -Force
+}
+
 # ─── Install Project Dependencies ────────────────────────────────────────────
 Write-Host ""
 Write-Host "[*] 1. Instalando dependencias del proyecto (npm install)..." -ForegroundColor Cyan
