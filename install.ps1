@@ -174,7 +174,7 @@ if (-not (Test-Path ".env")) {
 # ─── Install Project Dependencies ────────────────────────────────────────────
 Write-Host ""
 Write-Host "[*] 1. Instalando dependencias del proyecto (npm install)..." -ForegroundColor Cyan
-& npm install
+& npm install --include=dev
 
 Write-Host ""
 Write-Host "[*] 2. Generando cliente de base de datos local (npm run prisma:generate)..." -ForegroundColor Cyan
