@@ -195,11 +195,11 @@ Write-Host "[*] 2. Instalando explícitamente Prisma CLI y @prisma/client v6..."
 
 Write-Host ""
 Write-Host "[*] 3. Generando cliente de base de datos local (Prisma v6)..." -ForegroundColor Cyan
-& .\node_modules\.bin\prisma generate --schema src/database/prisma/schema.prisma
+& npm run prisma:generate
 
 Write-Host ""
 Write-Host "[*] 4. Aplicando esquema local a SQLite..." -ForegroundColor Cyan
-& .\node_modules\.bin\prisma db push --schema src/database/prisma/schema.prisma
+& npm run db:push
 
 Write-Host ""
 Write-Host "==================================================" -ForegroundColor Green
@@ -211,5 +211,5 @@ Write-Host "[*] Iniciando la aplicación en modo desarrollo..." -ForegroundColor
 Write-Host "[*] Presiona Ctrl+C en esta terminal para detener la aplicación." -ForegroundColor Gray
 Write-Host ""
 
-# Launch via local electron-vite binary to bypass global PATH conflicts
-& .\node_modules\.bin\electron-vite dev
+# Launch via npm scripts to handle cross-platform path resolution safely
+& npm run dev
