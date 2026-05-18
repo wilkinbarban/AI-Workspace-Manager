@@ -49,10 +49,7 @@ export interface AppApi {
     }) => Promise<AIProviderDto>
     listAIProviders: () => Promise<AIProviderDto[]>
     listAIProviderManifests: () => Promise<AIProviderManifest[]>
-    deleteAIProvider: (providerId: string) => Promise<{ ok: boolean }>
-    setDefaultAIProvider: (providerId: string) => Promise<AIProviderDto>
     getAISetupState: () => Promise<{ hasConfiguredProvider: boolean; defaultProviderId: string | null }>
-    testAIProvider: (providerId: string) => Promise<{ ok: boolean; message: string }>
     testAIProviderConfig: (input: {
       name: string
       type: string
@@ -62,8 +59,5 @@ export interface AppApi {
       apiKey?: string
     }) => Promise<{ ok: boolean; message: string }>
     getAIUsageSummary: () => Promise<AIUsageSummaryDto>
-  }
-  menu?: {
-    onAction: (callback: (action: string) => void) => () => void
   }
 }

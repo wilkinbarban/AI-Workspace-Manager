@@ -82,20 +82,8 @@ export function registerIpcHandlers(): void {
     return providerService.listManifests()
   })
 
-  safeHandle(IPC_CHANNELS.settings.deleteAIProvider, async (input: unknown) => {
-    return providerService.delete(projectIdSchema.parse(input))
-  })
-
-  safeHandle(IPC_CHANNELS.settings.setDefaultAIProvider, async (input: unknown) => {
-    return providerService.setDefault(projectIdSchema.parse(input))
-  })
-
   safeHandle(IPC_CHANNELS.settings.getAISetupState, async () => {
     return providerService.getSetupState()
-  })
-
-  safeHandle(IPC_CHANNELS.settings.testAIProvider, async (input: unknown) => {
-    return providerService.test(projectIdSchema.parse(input))
   })
 
   safeHandle(IPC_CHANNELS.settings.testAIProviderConfig, async (input: unknown) => {

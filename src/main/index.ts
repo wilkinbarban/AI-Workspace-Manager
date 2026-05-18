@@ -1,10 +1,9 @@
 import 'dotenv/config'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, Menu, shell } from 'electron'
 import { prisma, disconnectDatabase } from '@database/client'
 import { registerIpcHandlers } from '@main/ipc/register-ipc-handlers'
-import { setupApplicationMenu } from '@main/menu/app-menu'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -47,7 +46,7 @@ function createWindow(): void {
 app.whenReady().then(async () => {
   await prisma.$connect()
   registerIpcHandlers()
-  setupApplicationMenu()
+  Menu.setApplicationMenu(null)
   createWindow()
 
   app.on('activate', () => {

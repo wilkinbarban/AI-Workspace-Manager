@@ -14,8 +14,6 @@ import type {
 } from '@shared/types/workspace'
 import { appApi } from '@renderer/lib/api'
 
-export type ViewKey = 'dashboard' | 'project' | 'ai' | 'tasks' | 'memory' | 'settings' | 'usage' | 'models'
-
 /**
  * Main hook for managing the workspace state in the renderer process.
  * It provides centralized access to projects, tasks, memory, AI providers,
@@ -33,7 +31,6 @@ export function useWorkspaceManager() {
   const [providerManifests, setProviderManifests] = useState<AIProviderManifest[]>([])
   const [usageSummary, setUsageSummary] = useState<AIUsageSummaryDto | null>(null)
   const [setupRequired, setSetupRequired] = useState(false)
-  const [activeView, setActiveView] = useState<ViewKey>('dashboard')
   const [aiAnswer, setAiAnswer] = useState<AIProjectAnswer | null>(null)
   const [isBusy, setIsBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -279,22 +276,6 @@ export function useWorkspaceManager() {
     [run]
   )
 
-  const deleteProvider = useCallback(
-    async (providerId: string) => {
-      await run(() => appApi.settings.deleteAIProvider(providerId), 'Proveedor eliminado.')
-      await refreshProviders()
-    },
-    [refreshProviders, run]
-  )
-
-  const setDefaultProvider = useCallback(
-    async (providerId: string) => {
-      await run(() => appApi.settings.setDefaultAIProvider(providerId), 'Proveedor predeterminado actualizado.')
-      await refreshProviders()
-    },
-    [refreshProviders, run]
-  )
-
   const askAIForTask = useCallback(
     async (message: string, taskType: AITaskType, providerId?: string) => {
       if (!selectedProjectId) {
@@ -316,27 +297,6 @@ export function useWorkspaceManager() {
     [refreshProjectData, refreshProviders, run, selectedProjectId]
   )
 
-  const testProvider = useCallback(
-    async (providerId: string) => {
-      const result = await run(() => appApi.settings.testAIProvider(providerId))
-
-      if (result) {
-        setNotice(result.message)
-      }
-    },
-    [run]
-  )
-
-  useEffect(() => {
-    return appApi.menu?.onAction((action) => {
-      if (['ai-settings', 'ai-add', 'ai-edit', 'ai-delete', 'ai-test', 'ai-default'].includes(action)) {
-        setActiveView('settings')
-      }
-      if (action === 'ai-usage') setActiveView('usage')
-      if (action === 'ai-models') setActiveView('models')
-    })
-  }, [])
-
   return {
     projects,
     selectedProject,
@@ -349,7 +309,6 @@ export function useWorkspaceManager() {
     usageSummary,
     setupRequired,
     activeProvider,
-    activeView,
     aiAnswer,
     isBusy,
     error,
@@ -358,7 +317,6 @@ export function useWorkspaceManager() {
     isAgentRunning,
     activeTaskId,
     fileDiffs,
-    setActiveView,
     setSelectedProjectId,
     openProject,
     scanSelectedProject,
@@ -369,9 +327,6 @@ export function useWorkspaceManager() {
     completeTask,
     startAgent,
     saveProvider,
-    testProviderConfig,
-    deleteProvider,
-    setDefaultProvider,
-    testProvider
+    testProviderConfig
   }
 }

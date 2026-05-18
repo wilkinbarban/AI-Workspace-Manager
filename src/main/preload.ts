@@ -33,19 +33,9 @@ const api: AppApi = {
     saveAIProvider: (input) => ipcRenderer.invoke(IPC_CHANNELS.settings.saveAIProvider, input),
     listAIProviders: () => ipcRenderer.invoke(IPC_CHANNELS.settings.listAIProviders),
     listAIProviderManifests: () => ipcRenderer.invoke(IPC_CHANNELS.settings.listAIProviderManifests),
-    deleteAIProvider: (providerId) => ipcRenderer.invoke(IPC_CHANNELS.settings.deleteAIProvider, providerId),
-    setDefaultAIProvider: (providerId) => ipcRenderer.invoke(IPC_CHANNELS.settings.setDefaultAIProvider, providerId),
     getAISetupState: () => ipcRenderer.invoke(IPC_CHANNELS.settings.getAISetupState),
-    testAIProvider: (providerId) => ipcRenderer.invoke(IPC_CHANNELS.settings.testAIProvider, providerId),
     testAIProviderConfig: (input) => ipcRenderer.invoke(IPC_CHANNELS.settings.testAIProviderConfig, input),
     getAIUsageSummary: () => ipcRenderer.invoke(IPC_CHANNELS.settings.getAIUsageSummary)
-  },
-  menu: {
-    onAction: (callback) => {
-      const listener = (_event: IpcRendererEvent, action: string) => callback(action)
-      ipcRenderer.on(IPC_CHANNELS.menu.action, listener)
-      return () => ipcRenderer.off(IPC_CHANNELS.menu.action, listener)
-    }
   }
 }
 

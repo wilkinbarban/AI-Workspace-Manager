@@ -77,29 +77,6 @@ export class AIProviderService {
     return toAIProviderDto(provider)
   }
 
-  async delete(providerId: string): Promise<{ ok: boolean }> {
-    await this.secrets.deleteSecret(providerSecretAccount(providerId))
-    await prisma.aIProvider.delete({ where: { id: providerId } })
-
-    const defaultProvider = await prisma.aIProvider.findFirst({ where: { isDefault: true } })
-    if (!defaultProvider) {
-      const next = await prisma.aIProvider.findFirst({ where: { enabled: true }, orderBy: { updatedAt: 'desc' } })
-      if (next) await prisma.aIProvider.update({ where: { id: next.id }, data: { isDefault: true } })
-    }
-
-    return { ok: true }
-  }
-
-  async setDefault(providerId: string): Promise<AIProviderDto> {
-    await prisma.aIProvider.updateMany({ data: { isDefault: false } })
-    const provider = await prisma.aIProvider.update({
-      where: { id: providerId },
-      data: { isDefault: true, enabled: true }
-    })
-
-    return toAIProviderDto(provider)
-  }
-
   async getSetupState(): Promise<{ hasConfiguredProvider: boolean; defaultProviderId: string | null }> {
     const providers = await this.list()
     const defaultProvider = providers.find((provider) => provider.isDefault) ?? null
@@ -147,38 +124,6 @@ export class AIProviderService {
     }
 
     return this.secrets.getSecret(providerSecretAccount(provider.id))
-  }
-
-  async test(providerId: string): Promise<{ ok: boolean; message: string }> {
-    const provider = await this.getProvider(providerId)
-
-    if (!provider) {
-      return { ok: false, message: 'Proveedor no encontrado.' }
-    }
-
-    const adapter = aiProviderRegistry.get(provider.type)
-    const apiKey = await this.getApiKey(provider)
-    const validation = adapter.validateConfig({
-      id: provider.id,
-      name: provider.name,
-      type: provider.type,
-      authType: provider.authType,
-      apiKey,
-      baseUrl: provider.baseUrl,
-      model: provider.model
-    })
-
-    if (!validation.ok) return validation
-
-    return adapter.testConnection({
-      id: provider.id,
-      name: provider.name,
-      type: provider.type,
-      authType: provider.authType,
-      apiKey,
-      baseUrl: provider.baseUrl,
-      model: provider.model
-    })
   }
 
   testConfig(input: {

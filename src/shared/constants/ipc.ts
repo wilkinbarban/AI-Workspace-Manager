@@ -25,14 +25,8 @@ export const IPC_CHANNELS = {
     saveAIProvider: 'settings:saveAIProvider',
     listAIProviders: 'settings:listAIProviders',
     listAIProviderManifests: 'settings:listAIProviderManifests',
-    deleteAIProvider: 'settings:deleteAIProvider',
-    setDefaultAIProvider: 'settings:setDefaultAIProvider',
     getAISetupState: 'settings:getAISetupState',
-    testAIProvider: 'settings:testAIProvider',
     testAIProviderConfig: 'settings:testAIProviderConfig',
     getAIUsageSummary: 'settings:getAIUsageSummary'
-  },
-  menu: {
-    action: 'menu:action'
   }
 } as const

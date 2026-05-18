@@ -66,7 +66,7 @@ const webDemoApi: AppApi = {
   projects: {
     openProject: async () => demoProject,
     getProjects: async () => [demoProject],
-    cleanInactiveProjects: async (_activeProjectId) => {}
+    cleanInactiveProjects: async () => {}
   },
   workspace: {
     scanProject: async () => demoScan,
@@ -119,8 +119,8 @@ const webDemoApi: AppApi = {
         createdAt: now
       }
     }),
-    runAgent: async (_input) => 'demo-run',
-    onAgentEvent: (_callback) => () => {}
+    runAgent: async () => 'demo-run',
+    onAgentEvent: () => () => {}
   },
   tasks: {
     list: async () => [
@@ -288,25 +288,7 @@ const webDemoApi: AppApi = {
         status: 'ready'
       }
     ],
-    deleteAIProvider: async () => ({ ok: true }),
-    setDefaultAIProvider: async () => ({
-      id: 'demo-provider',
-      name: 'DeepSeek demo',
-      type: 'deepseek',
-      authType: 'bearer',
-      baseUrl: 'https://api.deepseek.com',
-      model: 'deepseek-v4-flash',
-      maskedSecret: 'sk-****demo',
-      isDefault: true,
-      enabled: true,
-      monthlyTokenLimit: 200000,
-      taskDefaults: {},
-      metadata: { demo: true },
-      createdAt: now,
-      updatedAt: now
-    }),
     getAISetupState: async () => ({ hasConfiguredProvider: true, defaultProviderId: 'demo-provider' }),
-    testAIProvider: async () => ({ ok: true, message: 'Demo web sin conexion real.' }),
     testAIProviderConfig: async () => ({ ok: true, message: 'Demo web sin conexion real. En desktop se prueba el proveedor seleccionado.' }),
     getAIUsageSummary: async () => ({
       totalInputTokens: 1200,

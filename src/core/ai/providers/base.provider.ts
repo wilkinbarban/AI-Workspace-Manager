@@ -6,7 +6,7 @@ import type {
   AIProviderRuntimeConfig
 } from '@core/ai/core/ai-provider.interface'
 import type { AIAuthType, AIProviderManifest, AIProviderType } from '@shared/types/workspace'
-import { extractTextFromUnknown, extractUsageFromUnknown, normalizeAIResponse } from '@core/ai/core/ai-response'
+import { extractUsageFromUnknown, normalizeAIResponse } from '@core/ai/core/ai-response'
 
 export interface BaseProviderOptions {
   id: AIProviderType

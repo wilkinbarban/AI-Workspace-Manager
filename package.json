@@ -18,7 +18,8 @@
     "prisma:migrate": "prisma migrate dev --schema src/database/prisma/schema.prisma",
     "prisma:studio": "prisma studio --schema src/database/prisma/schema.prisma",
     "db:push": "prisma db push --schema src/database/prisma/schema.prisma",
-    "electron:install": "node node_modules/electron/install.js"
+    "electron:install": "node node_modules/electron/install.js",
+    "electron:repair": "node scripts/repair-electron.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

@@ -11,9 +11,6 @@ import type {
   WorkspaceScanDto,
   AgentEvent
 } from '@shared/types/workspace'
-import { FileTreeView } from './components/FileTreeView'
-import { MetricGrid } from './components/MetricGrid'
-import { Sidebar } from './components/Sidebar'
 import { useWorkspaceManager } from './hooks/useWorkspaceManager'
 
 export default function App() {
@@ -27,7 +24,6 @@ export default function App() {
             <div className="brand-mark">AI Workspace Manager</div>
             <div className="brand-subtitle">Project control center</div>
           </div>
-          <Sidebar activeView={manager.activeView} onChange={manager.setActiveView} />
           <div className="flex items-center gap-2">
             <button className="btn-secondary" type="button" onClick={manager.openProject} disabled={manager.isBusy}>
               Abrir Proyecto
@@ -49,7 +45,6 @@ export default function App() {
               isBusy={manager.isBusy}
               onSaveProvider={manager.saveProvider}
               onTestProviderConfig={manager.testProviderConfig}
-              onGoToSettings={() => manager.setActiveView('settings')}
             />
           ) : (
             <>
@@ -60,21 +55,7 @@ export default function App() {
                 onSelectProject={manager.setSelectedProjectId}
               />
 
-              {manager.activeView === 'dashboard' ? (
-                <DashboardView manager={manager} />
-              ) : null}
-              {manager.activeView === 'settings' ? (
-                <SettingsView
-                  providers={manager.providers}
-                  manifests={manager.providerManifests}
-                  isBusy={manager.isBusy}
-                  onSaveProvider={manager.saveProvider}
-                  onDeleteProvider={manager.deleteProvider}
-                  onSetDefaultProvider={manager.setDefaultProvider}
-                  onTestProvider={manager.testProvider}
-                  onTestProviderConfig={manager.testProviderConfig}
-                />
-              ) : null}
+              <DashboardView manager={manager} />
             </>
           )}
         </div>
@@ -133,7 +114,6 @@ function AISetupGate(props: {
     name: string; type: string; authType?: string; baseUrl?: string
     model: string; apiKey?: string
   }) => void
-  onGoToSettings: () => void
 }) {
   const recommended = props.manifests.filter(m => ['deepseek', 'openai', 'anthropic', 'gemini', 'openrouter'].includes(m.type))
   const [type, setType] = useState<string>(recommended[0]?.type ?? 'deepseek')
@@ -223,13 +203,6 @@ function AISetupGate(props: {
             </button>
           </div>
         </form>
-
-        <p className="text-center section-kicker mt-4">
-          ¿Configuración avanzada?{' '}
-          <button type="button" className="btn-tertiary underline p-0 h-auto" style={{ fontSize: 11 }} onClick={props.onGoToSettings}>
-            Ir a Ajustes de IA
-          </button>
-        </p>
       </div>
     </div>
   )
@@ -350,137 +323,6 @@ function AgentMonitor({ events, isRunning, onDropTask }: {
             )}
           </div>
         ))}
-      </div>
-    </section>
-  )
-}
-
-
-function SetupWizard(props: {
-  manifests: AIProviderManifest[]
-  isBusy: boolean
-  onSaveProvider: (input: {
-    name: string
-    type: string
-    authType?: string
-    baseUrl?: string
-    model: string
-    apiKey?: string
-    monthlyTokenLimit?: number | null
-    isDefault?: boolean
-    enabled?: boolean
-  }) => void
-  onTestProviderConfig: (input: {
-    name: string
-    type: string
-    authType?: string
-    baseUrl?: string
-    model: string
-    apiKey?: string
-  }) => void
-}) {
-  const recommended = props.manifests.filter((manifest) => ['deepseek', 'openai', 'anthropic', 'gemini', 'ollama'].includes(manifest.type))
-  const [type, setType] = useState<string>(recommended[0]?.type ?? 'deepseek')
-  const manifest = props.manifests.find((item) => item.type === type) ?? recommended[0]
-  const [apiKey, setApiKey] = useState('')
-  const [baseUrl, setBaseUrl] = useState(manifest?.defaultBaseUrl ?? '')
-  const [model, setModel] = useState(manifest?.defaultModel ?? '')
-
-  useEffect(() => {
-    if (!manifest) return
-    setBaseUrl((current) => current || manifest.defaultBaseUrl || '')
-    setModel((current) => current || manifest.defaultModel)
-  }, [manifest])
-
-  function choose(nextType: string) {
-    const next = props.manifests.find((item) => item.type === nextType)
-    setType(nextType)
-    setBaseUrl(next?.defaultBaseUrl ?? '')
-    setModel(next?.defaultModel ?? '')
-    setApiKey('')
-  }
-
-  if (!manifest) return null
-
-  return (
-    <section className="ide-mockup-card mb-8">
-      <div className="ide-toolbar">
-        <div>
-          <div className="section-title">Asistente inicial de IA</div>
-          <div className="section-kicker">Configura al menos un proveedor para habilitar analisis con IA.</div>
-        </div>
-        <span className="timeline-pill timeline-thinking">Setup</span>
-      </div>
-      <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="grid gap-3 md:grid-cols-2">
-          {recommended.map((item) => (
-            <button
-              key={item.type}
-              type="button"
-              className={['feature-card text-left', item.type === type ? 'border-[var(--color-primary)]' : ''].join(' ')}
-              onClick={() => choose(item.type)}
-            >
-              <div className="section-title">{item.name}</div>
-              <p className="section-kicker mt-2">{item.description}</p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className="badge">{item.authType}</span>
-                {item.supportsLocal ? <span className="badge">local</span> : null}
-              </div>
-            </button>
-          ))}
-        </div>
-        <form
-          className="panel space-y-3"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void props.onSaveProvider({
-              name: manifest.name,
-              type: manifest.type,
-              authType: manifest.authType,
-              baseUrl,
-              model,
-              apiKey,
-              isDefault: true,
-              enabled: true
-            })
-          }}
-        >
-          <div className="section-title">{manifest.name}</div>
-          <p className="section-kicker">
-            {manifest.requiresApiKey ? 'Pega tu API Key. Se guardara en el almacen seguro del sistema.' : 'Configura la URL local. API Key no obligatoria.'}
-          </p>
-          <input className="input" value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="Base URL" />
-          <select className="input" value={model} onChange={(event) => setModel(event.target.value)}>
-            {manifest.availableModels.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-          {manifest.requiresApiKey ? (
-            <input className="input" type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="API Key" />
-          ) : null}
-          <button
-            className="btn-secondary w-full"
-            type="button"
-            disabled={props.isBusy || !model || (manifest.requiresApiKey && !apiKey.trim())}
-            onClick={() =>
-              props.onTestProviderConfig({
-                name: manifest.name,
-                type: manifest.type,
-                authType: manifest.authType,
-                baseUrl,
-                model,
-                apiKey
-              })
-            }
-          >
-            Probar conexion
-          </button>
-          <button className="btn-primary w-full" type="submit" disabled={props.isBusy || !model || (manifest.requiresApiKey && !apiKey.trim())}>
-            Guardar IA predeterminada
-          </button>
-        </form>
       </div>
     </section>
   )
@@ -671,9 +513,6 @@ function DashboardView({ manager }: { manager: ReturnType<typeof useWorkspaceMan
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [manager.isAgentRunning])
 
-  const [agentPrompt, setAgentPrompt] = useState('Analiza la estructura del proyecto y explora sus archivos principales.')
-  const [activeTaskId, setActiveTaskId] = useState<string | undefined>()
-
   const project = manager.selectedProject
   const scan = manager.latestScan
 
@@ -684,8 +523,6 @@ function DashboardView({ manager }: { manager: ReturnType<typeof useWorkspaceMan
   if (!scan) {
     return <EmptyState title={project.name} action="Ejecuta el scanner para generar el dashboard." />
   }
-
-  const pendingTasks = manager.tasks.filter((task) => task.status === 'pending').length
 
   const renderStepContent = () => {
     switch (step) {
@@ -942,34 +779,6 @@ function ProjectHealthDashboard(props: {
           })}
         </div>
       </div>
-    </div>
-  )
-}
-
-function ProjectView({ project, scan }: { project: ProjectDto | null; scan: WorkspaceScanDto | null }) {
-  if (!project) {
-    return <EmptyState title="Proyecto" action="Abre una carpeta para ver el arbol." />
-  }
-
-  return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <section className="panel">
-        <h2 className="section-title">Arbol de archivos</h2>
-        <div className="ide-pane mt-4 max-h-[620px] overflow-auto p-3">
-          {scan?.fileTree.length ? <FileTreeView nodes={scan.fileTree} /> : <EmptyInline text="Ejecuta un analisis para poblar el arbol." />}
-        </div>
-      </section>
-
-      <section className="panel">
-        <h2 className="section-title">Resumen</h2>
-        <div className="mt-4 space-y-3">
-          <Fact label="Ruta" value={project.path} />
-          <Fact label="Git" value={scan?.summary.hasGit ? 'Detectado' : 'No detectado'} />
-          <Fact label="Docker" value={scan?.summary.hasDocker ? 'Detectado' : 'No detectado'} />
-          <Fact label="README" value={scan?.summary.hasReadme ? 'Detectado' : 'No detectado'} />
-          <Fact label="Tests" value={scan?.summary.hasTests ? 'Detectados' : 'No detectados'} />
-        </div>
-      </section>
     </div>
   )
 }
@@ -1313,280 +1122,12 @@ function UsageView({ usage }: { usage: AIUsageSummaryDto | null }) {
   )
 }
 
-function ModelsView({ manifests }: { manifests: AIProviderManifest[] }) {
-  return (
-    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {manifests.map((manifest) => (
-        <article key={manifest.type} className="feature-card">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="section-title">{manifest.name}</h2>
-              <p className="section-kicker mt-2">{manifest.description}</p>
-            </div>
-            <span className="badge">{manifest.status}</span>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <span className="timeline-pill timeline-read">{manifest.authType}</span>
-            {manifest.supportsStreaming ? <span className="timeline-pill timeline-grep">stream</span> : null}
-            {manifest.supportsTools ? <span className="timeline-pill timeline-edit">tools</span> : null}
-            {manifest.supportsVision ? <span className="timeline-pill timeline-thinking">vision</span> : null}
-            {manifest.supportsLocal ? <span className="timeline-pill timeline-done">local</span> : null}
-          </div>
-          <div className="ide-pane mt-4 p-3">
-            {manifest.availableModels.slice(0, 6).map((model) => (
-              <div key={model}>{model}</div>
-            ))}
-          </div>
-        </article>
-      ))}
-    </section>
-  )
-}
-
-function SettingsView(props: {
-  providers: AIProviderDto[]
-  manifests: AIProviderManifest[]
-  isBusy: boolean
-  onSaveProvider: (input: {
-    id?: string
-    name: string
-    type: string
-    authType?: string
-    baseUrl?: string
-    model: string
-    apiKey?: string
-    monthlyTokenLimit?: number | null
-    isDefault?: boolean
-    enabled?: boolean
-  }) => void
-  onDeleteProvider: (providerId: string) => void
-  onSetDefaultProvider: (providerId: string) => void
-  onTestProvider: (providerId: string) => void
-  onTestProviderConfig: (input: {
-    name: string
-    type: string
-    authType?: string
-    baseUrl?: string
-    model: string
-    apiKey?: string
-  }) => void
-}) {
-  const initialManifest = props.manifests.find((item) => item.type === 'deepseek') ?? props.manifests[0]
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [providerName, setProviderName] = useState(initialManifest?.name ?? 'DeepSeek')
-  const [apiKey, setApiKey] = useState('')
-  const [type, setType] = useState<string>(initialManifest?.type ?? 'deepseek')
-  const manifest = props.manifests.find((item) => item.type === type)
-  const [baseUrl, setBaseUrl] = useState(initialManifest?.defaultBaseUrl ?? 'https://api.deepseek.com')
-  const [model, setModel] = useState(initialManifest?.defaultModel ?? 'deepseek-v4-flash')
-  const [monthlyTokenLimit, setMonthlyTokenLimit] = useState('200000')
-  const modelOptions = manifest ? Array.from(new Set([model, ...manifest.availableModels].filter(Boolean))) : []
-
-  useEffect(() => {
-    if (manifest) {
-      setProviderName((current) => current || manifest.name)
-      setBaseUrl((current) => current || manifest.defaultBaseUrl || '')
-      setModel((current) => current || manifest.defaultModel)
-    }
-  }, [manifest])
-
-  function changeType(nextType: string) {
-    const next = props.manifests.find((item) => item.type === nextType)
-    setType(nextType)
-    setProviderName(next?.name ?? nextType)
-    setBaseUrl(next?.defaultBaseUrl ?? '')
-    setModel(next?.defaultModel ?? '')
-    setApiKey('')
-  }
-
-  function resetForm() {
-    const next = props.manifests.find((item) => item.type === 'deepseek') ?? props.manifests[0]
-    setEditingId(null)
-    setProviderName(next?.name ?? 'DeepSeek')
-    setType(next?.type ?? 'deepseek')
-    setBaseUrl(next?.defaultBaseUrl ?? 'https://api.deepseek.com')
-    setModel(next?.defaultModel ?? 'deepseek-v4-flash')
-    setMonthlyTokenLimit('200000')
-    setApiKey('')
-  }
-
-  function editProvider(provider: AIProviderDto) {
-    setEditingId(provider.id)
-    setProviderName(provider.name)
-    setType(provider.type)
-    setBaseUrl(provider.baseUrl ?? '')
-    setModel(provider.model)
-    setMonthlyTokenLimit(provider.monthlyTokenLimit ? String(provider.monthlyTokenLimit) : '')
-    setApiKey('')
-  }
-
-  return (
-    <div className="grid gap-5 lg:grid-cols-[420px_minmax(0,1fr)]">
-      <section className="panel">
-        <h2 className="section-title">{editingId ? 'Editar proveedor IA' : 'Agregar proveedor IA'}</h2>
-        <form
-          className="mt-4 space-y-3"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void props.onSaveProvider({
-              id: editingId ?? undefined,
-              name: providerName || manifest?.name || type,
-              type,
-              authType: manifest?.authType,
-              baseUrl,
-              model,
-              apiKey,
-              monthlyTokenLimit: monthlyTokenLimit ? Number(monthlyTokenLimit) : null,
-              enabled: true
-            })
-            resetForm()
-          }}
-        >
-          <input
-            className="input"
-            value={providerName}
-            onChange={(event) => setProviderName(event.target.value)}
-            placeholder="Nombre visible"
-            disabled={props.isBusy}
-          />
-          <select className="input" value={type} onChange={(event) => changeType(event.target.value)}>
-            {props.manifests.map((item) => (
-              <option key={item.type} value={item.type}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-          <input className="input" value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} disabled={props.isBusy} />
-          {type === 'deepseek' ? (
-            <p className="section-kicker">
-              La clave se crea en platform.deepseek.com, pero las solicitudes se envian a https://api.deepseek.com.
-            </p>
-          ) : null}
-          {manifest ? (
-            <select className="input" value={model} onChange={(event) => setModel(event.target.value)} disabled={props.isBusy}>
-              {modelOptions.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input className="input" value={model} onChange={(event) => setModel(event.target.value)} disabled={props.isBusy} />
-          )}
-          <input
-            className="input"
-            type="password"
-            value={apiKey}
-            onChange={(event) => setApiKey(event.target.value)}
-            placeholder={manifest?.requiresApiKey ? 'API Key' : 'API Key opcional'}
-            disabled={props.isBusy}
-          />
-          <input
-            className="input"
-            value={monthlyTokenLimit}
-            onChange={(event) => setMonthlyTokenLimit(event.target.value)}
-            placeholder="Limite mensual manual de tokens"
-            disabled={props.isBusy}
-          />
-          <div className="flex flex-wrap gap-2">
-            <button
-              className="btn-secondary"
-              type="button"
-              disabled={props.isBusy || !model.trim() || Boolean(manifest?.requiresApiKey && !apiKey.trim())}
-              onClick={() =>
-                props.onTestProviderConfig({
-                  name: providerName || manifest?.name || type,
-                  type,
-                  authType: manifest?.authType,
-                  baseUrl,
-                  model,
-                  apiKey
-                })
-              }
-            >
-              Probar sin guardar
-            </button>
-            <button className="btn-primary" type="submit" disabled={props.isBusy || !model.trim()}>
-              {editingId ? 'Guardar cambios' : 'Guardar proveedor'}
-            </button>
-            {editingId ? (
-              <button className="btn-secondary" type="button" onClick={resetForm} disabled={props.isBusy}>
-                Cancelar
-              </button>
-            ) : null}
-          </div>
-          <p className="section-kicker">
-            OAuth/IAM/Service Account quedan marcados como preparados cuando el proveedor lo requiere.
-          </p>
-        </form>
-      </section>
-
-      <section className="panel">
-        <h2 className="section-title">Proveedores</h2>
-        <div className="mt-4 space-y-3">
-          {props.providers.length ? (
-            props.providers.map((provider) => (
-              <div key={provider.id} className="provider-row flex items-center justify-between gap-3 p-5">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="section-title">{provider.name}</span>
-                    {provider.isDefault ? <span className="badge-success">Default</span> : null}
-                    {provider.enabled ? <span className="badge">Activo</span> : null}
-                  </div>
-                  <div className="section-kicker mt-1 truncate">
-                    {provider.model} / {provider.maskedSecret ?? 'sin clave'} / limite {provider.monthlyTokenLimit ?? 'no disponible'}
-                  </div>
-                </div>
-                <div className="flex flex-wrap justify-end gap-2">
-                  <button className="btn-secondary" type="button" onClick={() => props.onTestProvider(provider.id)} disabled={props.isBusy}>
-                    Probar
-                  </button>
-                  <button className="btn-secondary" type="button" onClick={() => editProvider(provider)} disabled={props.isBusy}>
-                    Editar
-                  </button>
-                  <button className="btn-secondary" type="button" onClick={() => props.onSetDefaultProvider(provider.id)} disabled={props.isBusy}>
-                    Default
-                  </button>
-                  <button className="btn-secondary" type="button" onClick={() => props.onDeleteProvider(provider.id)} disabled={props.isBusy}>
-                    Eliminar
-                  </button>
-                </div>
-              </div>
-            ))
-          ) : (
-            <EmptyInline text="No hay proveedores guardados." />
-          )}
-        </div>
-      </section>
-    </div>
-  )
-}
-
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="fact min-w-0 p-4">
       <div className="fact-label">{label}</div>
       <div className="fact-value mt-1 truncate" title={value}>
         {value}
-      </div>
-    </div>
-  )
-}
-
-function ListPanel(props: { title: string; items: string[]; empty: string; compact?: boolean }) {
-  return (
-    <div className={props.compact ? '' : 'panel'}>
-      <h2 className="section-title">{props.title}</h2>
-      <div className="mt-4 space-y-2">
-        {props.items.length ? (
-          props.items.map((item) => (
-            <div key={item} className="list-row body-copy p-4">
-              {item}
-            </div>
-          ))
-        ) : (
-          <EmptyInline text={props.empty} />
-        )}
       </div>
     </div>
   )
