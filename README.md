@@ -48,9 +48,11 @@ powershell -c "irm https://raw.githubusercontent.com/wilkinbarban/AI-Workspace-M
 > * **Validación de Entorno:** Comprueba si cuentas con Node.js (versión >= 20) y npm (versión >= 10) instalados en tu sistema.
 > * **Instalación de Dependencias del Sistema:** Si falta Node.js o npm, los descarga e instala de forma silenciosa utilizando **winget** de Microsoft.
 > * **Recarga Dinámica de PATH:** Actualiza las variables de entorno de la sesión activa de PowerShell para utilizar inmediatamente los nuevos comandos sin necesidad de reiniciar la consola.
-> * **Descarga y Extracción Directa:** Descarga el código fuente en un archivo ZIP directamente de GitHub y lo extrae de forma limpia en tu **Escritorio** (`AI-Workspace-Manager`). ¡No necesitas tener instalado Git!
-> * **Configuración del Proyecto:** Accede a la carpeta en tu escritorio y ejecuta la instalación de paquetes (`npm install`), genera el cliente Prisma (`npm run prisma:generate`) y despliega la base de datos local SQLite (`npm run db:push`).
-> * **Arranque:** Inicia de forma automática el servidor de desarrollo (`npm run dev`).
+> * **Enrutamiento Inteligente de Ruta (Detección de OneDrive):** Detecta automáticamente si tu Escritorio está sincronizado o gestionado por OneDrive. En tal caso, redirige la descarga y la instalación directamente a tu directorio de usuario (`$env:USERPROFILE/AI-Workspace-Manager`) en lugar de tu Escritorio, lo cual evita bloqueos de archivos en red, demoras de sincronización y errores de permisos.
+> * **Descarga y Extracción Directa:** Descarga el código fuente en un archivo ZIP directamente de GitHub de forma segura (forzando TLS 1.2/1.3) y lo extrae de forma limpia. ¡No necesitas tener instalado Git!
+> * **Mecanismo de Recuperación de Electron (Self-Healing):** Si la instalación automatizada de Electron falla o se interrumpe de manera silenciosa (común en nuevas versiones de Node como Node v26), el instalador activa un fallback de extracción manual. Localiza el binario en la caché local (`$env:LOCALAPPDATA/electron/Cache`), lo descomprime y lo vincula dinámicamente en los módulos para prevenir fallos de arranque (`"Error: Electron uninstall"`).
+> * **Configuración del Proyecto:** Crea automáticamente tu archivo de configuración `.env`, realiza una instalación limpia de dependencias (eliminando previamente bloqueos obsoletos de `package-lock.json`), instala explícitamente Prisma CLI y el cliente en su versión v6, genera el cliente de datos y despliega la base de datos local SQLite (`npm run db:push`).
+> * **Arranque:** Inicia de forma automática la aplicación en modo desarrollo (`npm run dev`).
 
 ## Instalación y Desarrollo Manual
 
