@@ -209,6 +209,40 @@ $env:NODE_ENV = "development"
 & npm install 
 & npm run electron:install
 
+# Fallback in case Electron extraction fails silently (common on newer Node versions like Node v26)
+$pathTxt = "node_modules/electron/path.txt"
+if (-not (Test-Path $pathTxt)) {
+    Write-Host "[!] La instalación automática de Electron falló o se interrumpió." -ForegroundColor Yellow
+    Write-Host "[*] Intentando extracción manual desde el caché local..." -ForegroundColor Cyan
+    $cacheDir = Join-Path $env:LOCALAPPDATA "electron\Cache"
+    if (Test-Path $cacheDir) {
+        $zipFile = Get-ChildItem -Path $cacheDir -Filter "electron-v*-win32-x64.zip" -Recurse | 
+                   Sort-Object LastWriteTime -Descending | 
+                   Select-Object -First 1
+        
+        if ($zipFile) {
+            Write-Host "[*] Archivo ZIP encontrado en caché: $($zipFile.FullName)" -ForegroundColor Gray
+            $distDir = "node_modules/electron/dist"
+            if (-not (Test-Path $distDir)) { New-Item -ItemType Directory -Path $distDir -Force | Out-Null }
+            
+            Write-Host "[*] Extrayendo Electron binario manualmente..." -ForegroundColor Cyan
+            Expand-Archive -Path $zipFile.FullName -DestinationPath $distDir -Force
+            
+            if (Test-Path "$distDir/electron.d.ts") {
+                Move-Item "$distDir/electron.d.ts" "node_modules/electron/electron.d.ts" -Force
+            }
+            
+            "electron.exe" | Out-File -FilePath $pathTxt -NoNewline -Encoding ascii
+            Write-Host "[+] Extracción manual completada exitosamente." -ForegroundColor Green
+        } else {
+            Write-Host "[-] No se encontró un archivo ZIP de Electron en el caché local." -ForegroundColor Red
+        }
+    } else {
+        Write-Host "[-] Directorio de caché de Electron no encontrado." -ForegroundColor Red
+    }
+}
+
+
 Write-Host ""
 Write-Host "[*] 2. Instalando explícitamente Prisma CLI y @prisma/client v6..." -ForegroundColor Cyan
 & npm install --save-dev prisma@6.19.3
