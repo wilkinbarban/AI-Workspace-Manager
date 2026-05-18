@@ -2,8 +2,9 @@
 #
 # This script automates the environment setup and installation of AI Workspace Manager.
 # It validates Node.js and npm, installs them via winget if missing, downloads the
-# repository source code as a ZIP file, extracts it directly onto the user's Desktop,
-# installs project dependencies, and launches the app in development mode.
+# repository source code as a ZIP file, extracts it directly onto the user's Desktop
+# (or User Profile folder if OneDrive is active), installs project dependencies,
+# and launches the app in development mode.
 #
 # Usage:
 #   powershell -c "irm https://raw.githubusercontent.com/wilkinbarban/AI-Workspace-Manager/main/install.ps1 | iex"
@@ -16,7 +17,7 @@ Write-Host "==================================================" -ForegroundColor
 Write-Host ""
 
 # ─── Helper: Reload PATH in current session ──────────────────────────────────
-function Refresh-SessionPath {
+function Update-SessionPath {
     Write-Host "[*] Refrescando variables de entorno del PATH para esta sesión..." -ForegroundColor Yellow
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
 }
@@ -53,7 +54,7 @@ if (-not (Test-NodeVersion)) {
     try {
         # OpenJS.NodeJS is the official LTS package on winget
         Start-Process winget -ArgumentList "install --id OpenJS.NodeJS -e --silent --accept-source-agreements --accept-package-agreements" -NoNewWindow -Wait
-        Refresh-SessionPath
+        Update-SessionPath
         
         # Fallback check path directly if session path reload didn't catch it
         $nodePaths = @(
@@ -70,11 +71,13 @@ if (-not (Test-NodeVersion)) {
             throw "Node.js no se detecta en el PATH tras la instalación automática."
         }
         Write-Host "[+] Node.js instalado correctamente." -ForegroundColor Green
-    } catch {
+    }
+    catch {
         Write-Host "[-] Error al instalar Node.js. Por favor instálalo desde nodejs.org (versión >= 20) y vuelve a correr el script." -ForegroundColor Red
         Exit 1
     }
-} else {
+}
+else {
     $currentVersion = node -v
     Write-Host "[+] Node.js detectado ($currentVersion)." -ForegroundColor Green
 }
@@ -85,15 +88,17 @@ if (-not (Test-NpmVersion)) {
     try {
         # Update npm globally using node's npm
         Start-Process cmd -ArgumentList "/c npm install -g npm@latest" -NoNewWindow -Wait
-        Refresh-SessionPath
+        Update-SessionPath
         if (-not (Test-NpmVersion)) {
             throw "npm no se actualizó correctamente."
         }
         Write-Host "[+] npm actualizado correctamente." -ForegroundColor Green
-    } catch {
+    }
+    catch {
         Write-Host "[-] Error al actualizar npm. Intentando continuar de todos modos..." -ForegroundColor Yellow
     }
-} else {
+}
+else {
     $currentNpm = & npm -v
     Write-Host "[+] npm detectado ($currentNpm)." -ForegroundColor Green
 }
@@ -102,11 +107,22 @@ Write-Host ""
 Write-Host "[*] Comprobación de dependencias del sistema completada con éxito." -ForegroundColor Green
 Write-Host ""
 
-# ─── Resolving Desktop Path and Downloading ZIP ──────────────────────────────
+# ─── Resolving Target Installation Path and Downloading ZIP ──────────────────
 $desktop = [System.Environment]::GetFolderPath("Desktop")
-$targetFolder = Join-Path $desktop "AI-Workspace-Manager"
+$userProfile = $env:USERPROFILE
 
-Write-Host "[*] Resolviendo ruta de instalación en el Escritorio..." -ForegroundColor Cyan
+# Detect if OneDrive is active or if Desktop is backed up by OneDrive
+$isOneDrive = ($desktop -like "*OneDrive*") -or (Test-Path env:OneDrive) -or (Test-Path env:OneDriveConsumer)
+
+if ($isOneDrive) {
+    Write-Host "[!] Se detectó OneDrive activo o que el Escritorio está sincronizado con OneDrive." -ForegroundColor Yellow
+    Write-Host "[!] Para evitar bloqueos y errores en la instalación de dependencias, el proyecto se instalará en la carpeta del usuario." -ForegroundColor Yellow
+    $targetFolder = Join-Path $userProfile "AI-Workspace-Manager"
+} else {
+    $targetFolder = Join-Path $desktop "AI-Workspace-Manager"
+}
+
+Write-Host "[*] Resolviendo ruta de instalación..." -ForegroundColor Cyan
 Write-Host "[*] Destino: $targetFolder" -ForegroundColor Gray
 
 # Create temporary paths for downloading and extracting
@@ -124,7 +140,8 @@ try {
     
     Invoke-WebRequest -Uri "https://github.com/wilkinbarban/AI-Workspace-Manager/archive/refs/heads/main.zip" -OutFile $tempZip -UseBasicParsing
     Write-Host "[+] Descarga completada." -ForegroundColor Green
-} catch {
+}
+catch {
     Write-Host "[-] Error al descargar el archivo ZIP desde GitHub. Verifica tu conexión a internet." -ForegroundColor Red
     Exit 1
 }
@@ -135,7 +152,8 @@ try {
     New-Item -ItemType Directory -Path $tempExtractDir -Force | Out-Null
     Expand-Archive -Path $tempZip -DestinationPath $tempExtractDir -Force
     Write-Host "[+] Extracción completada." -ForegroundColor Green
-} catch {
+}
+catch {
     Write-Host "[-] Error al extraer el archivo ZIP descargado." -ForegroundColor Red
     Exit 1
 }
@@ -143,26 +161,28 @@ try {
 # The extracted directory name inside the ZIP is "AI-Workspace-Manager-main"
 $extractedFolder = Join-Path $tempExtractDir "AI-Workspace-Manager-main"
 
-Write-Host "[*] Moviendo la carpeta al Escritorio..." -ForegroundColor Cyan
+Write-Host "[*] Moviendo la carpeta de instalación..." -ForegroundColor Cyan
 try {
-    # If the target folder on the Desktop already exists, delete it first for a clean state
+    # If the target folder already exists, delete it first for a clean state
     if (Test-Path $targetFolder) {
-        Write-Host "[!] Se detectó una carpeta existente de AI-Workspace-Manager en el Escritorio. Eliminándola para una instalación limpia..." -ForegroundColor Yellow
+        Write-Host "[!] Se detectó una carpeta existente de AI-Workspace-Manager en la ruta de destino. Eliminándola para una instalación limpia..." -ForegroundColor Yellow
         Remove-Item $targetFolder -Recurse -Force
     }
 
     Move-Item -Path $extractedFolder -Destination $targetFolder -Force
-    Write-Host "[+] Carpeta instalada en el Escritorio correctamente." -ForegroundColor Green
-} catch {
-    Write-Host "[-] Error al mover la carpeta al Escritorio. Verifica que no esté abierta en otra aplicación." -ForegroundColor Red
+    Write-Host "[+] Carpeta instalada correctamente en: $targetFolder" -ForegroundColor Green
+}
+catch {
+    Write-Host "[-] Error al mover la carpeta a la ruta de destino. Verifica que no esté abierta en otra aplicación." -ForegroundColor Red
     Exit 1
-} finally {
+}
+finally {
     # Clean up temporary zip and temp directory
     if (Test-Path $tempZip) { Remove-Item $tempZip -Force }
     if (Test-Path $tempExtractDir) { Remove-Item $tempExtractDir -Recurse -Force }
 }
 
-# Navigate into the project folder on the Desktop
+# Navigate into the project folder
 Set-Location $targetFolder
 
 # ─── Configure Environment Variables (.env) ──────────────────────────────────
@@ -186,7 +206,8 @@ if (Test-Path "node_modules") {
 Write-Host ""
 Write-Host "[*] 1. Instalando todas las dependencias del proyecto..." -ForegroundColor Cyan
 $env:NODE_ENV = "development"
-& npm install
+& npm install 
+& npm run electron:install
 
 Write-Host ""
 Write-Host "[*] 2. Instalando explícitamente Prisma CLI y @prisma/client v6..." -ForegroundColor Cyan
