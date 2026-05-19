@@ -163,7 +163,13 @@ function Invoke-LoggedCommand {
             -RedirectStandardError $stderrLog
 
         Wait-ProcessWithSpinner -Process $process -Message $Activity
+        $process.WaitForExit()
+        $process.Refresh()
         $exitCode = $process.ExitCode
+
+        if ($null -eq $exitCode) {
+            throw "$FailureMessage El proceso termino sin devolver codigo de salida."
+        }
 
         if (Test-Path $stdoutLog) {
             $stdout = Get-Content -Path $stdoutLog -Raw -ErrorAction SilentlyContinue
