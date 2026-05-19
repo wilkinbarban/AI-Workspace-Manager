@@ -105,22 +105,19 @@ Clona o descarga el repositorio y ejecuta:
 ```powershell
 npm install
 Copy-Item .env.example .env
+npm run electron:repair
 npm run prisma:generate
 npm run db:push
 npm run dev
 ```
 
-Si ya tienes `package-lock.json` y quieres una instalacion reproducible:
-
-```powershell
-npm ci
-```
-
-Si Electron no queda instalado correctamente:
+`npm install` ejecuta tambien `postinstall`, que valida y repara Electron automaticamente. El comando `npm run electron:repair` se deja en el flujo manual porque es idempotente y evita el error `Electron uninstall` cuando el instalador oficial de Electron no crea `path.txt` o `dist\electron.exe` en Windows.
 
 ```powershell
 npm run electron:repair
 ```
+
+Para equipos Windows de usuario final, el flujo recomendado sigue siendo `install.ps1`, porque ademas crea backup de instalaciones previas, guarda `install.log`, prepara `.env`, ejecuta Prisma y arranca la aplicacion con validaciones previas.
 
 ## Configuracion de IA
 
@@ -210,7 +207,9 @@ Cierra y abre PowerShell. El instalador intenta refrescar `PATH`, pero algunos e
 
 ### Error con Electron
 
-Si aparece `Electron uninstall`, ejecuta:
+Si aparece `Electron uninstall`, significa que el paquete `electron` quedo incompleto dentro de `node_modules`. Normalmente faltan `node_modules\electron\path.txt`, `node_modules\electron\dist\version` o `node_modules\electron\dist\electron.exe`.
+
+Ejecuta:
 
 ```powershell
 npm run electron:repair
