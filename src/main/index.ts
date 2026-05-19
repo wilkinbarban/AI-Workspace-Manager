@@ -23,7 +23,9 @@ function createWindow(): void {
       preload: path.join(__dirname, '../preload/preload.mjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      // El preload actual se empaqueta como modulo ESM mediante electron-vite.
+      // Mantener sandbox desactivado evita que Electron omita window.api y caiga al modo demo web.
+      sandbox: false
     }
   })
 
