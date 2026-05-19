@@ -80,10 +80,18 @@ El instalador:
 - crea backup si ya existe una instalacion previa;
 - crea `.env` desde `.env.example` si no existe;
 - instala dependencias con `npm ci` cuando hay `package-lock.json`, o `npm install` como fallback;
-- ejecuta `npm run electron:install`;
+- valida y repara Electron con `npm run electron:repair` si detecta una instalacion incompleta;
 - genera el cliente Prisma;
 - aplica el esquema SQLite local con `npm run db:push`;
 - inicia la app con `npm run dev`.
+
+La consola del instalador muestra solo el avance principal, un indicador animado durante tareas largas y errores accionables. La salida completa de `npm`, Prisma, Electron y otros comandos se guarda en:
+
+```text
+<carpeta-del-proyecto>\install.log
+```
+
+Si ocurre un fallo antes de crear la carpeta final del proyecto, el instalador mostrara la ruta del log temporal en la consola.
 
 La ruta por defecto es:
 
@@ -111,7 +119,7 @@ npm ci
 Si Electron no queda instalado correctamente:
 
 ```powershell
-npm run electron:install
+npm run electron:repair
 ```
 
 ## Configuracion de IA
@@ -202,7 +210,7 @@ Cierra y abre PowerShell. El instalador intenta refrescar `PATH`, pero algunos e
 
 ### Error con Electron
 
-Ejecuta:
+Si aparece `Electron uninstall`, ejecuta:
 
 ```powershell
 npm run electron:repair
@@ -213,6 +221,8 @@ Luego intenta de nuevo:
 ```powershell
 npm run dev
 ```
+
+Cuando el problema ocurre durante la instalacion de un clic, revisa `install.log` dentro de la carpeta instalada. El instalador valida `node_modules/electron/path.txt`, `node_modules/electron/dist/version` y `node_modules/electron/dist/electron.exe` antes de iniciar la app. Si la reparacion normal no deja Electron listo, el instalador extrae manualmente el ZIP oficial de Electron desde la cache local o lo descarga desde GitHub Releases.
 
 ### Error con Prisma o SQLite
 

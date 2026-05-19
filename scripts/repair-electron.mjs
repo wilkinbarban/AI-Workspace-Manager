@@ -80,7 +80,7 @@ async function rebuildFromArtifact() {
     arch
   })
 
-  await extract(zipPath, { dir: distDir })
+  await extractElectronZip(zipPath, distDir)
 
   const extractedTypes = path.join(distDir, 'electron.d.ts')
   if (fs.existsSync(extractedTypes)) {
@@ -88,6 +88,32 @@ async function rebuildFromArtifact() {
   }
 
   fs.writeFileSync(pathTxt, platformPath, 'utf8')
+}
+
+async function extractElectronZip(zipPath, destination) {
+  if (process.platform === 'win32') {
+    const result = childProcess.spawnSync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        'Expand-Archive -LiteralPath $args[0] -DestinationPath $args[1] -Force',
+        zipPath,
+        destination
+      ],
+      { stdio: 'inherit' }
+    )
+
+    if (result.status !== 0) {
+      throw new Error(`PowerShell Expand-Archive failed with exit code ${result.status}.`)
+    }
+
+    return
+  }
+
+  await extract(zipPath, { dir: destination })
 }
 
 function getPlatformPath(currentPlatform) {
