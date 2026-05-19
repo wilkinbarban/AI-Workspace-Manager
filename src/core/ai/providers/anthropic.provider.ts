@@ -4,6 +4,7 @@ import type {
   AIChatRequest,
   AIChatResult,
   AIToolCall,
+  AIToolDefinition,
   AIProviderRuntimeConfig
 } from '@core/ai/core/ai-provider.interface'
 import { OpenAICompatibleProvider } from './base.provider'
@@ -335,15 +336,15 @@ export class AnthropicProvider extends OpenAICompatibleProvider {
    * { "name": "...", "description": "...", "input_schema": { "type": "object", ... } }
    * ```
    */
-  private adaptTools(tools: any[]): AnthropicTool[] {
+  private adaptTools(tools: AIToolDefinition[]): AnthropicTool[] {
     return tools.map((tool) => {
-      const fn = tool.function ?? tool
+      const fn = tool.function
       return {
         name: fn.name,
         ...(fn.description ? { description: fn.description } : {}),
         input_schema: {
           type: 'object',
-          ...(fn.parameters ?? fn.input_schema ?? {})
+          ...fn.parameters
         }
       }
     })

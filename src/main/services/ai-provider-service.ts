@@ -26,8 +26,8 @@ export class AIProviderService {
   async save(input: {
     id?: string
     name: string
-    type: string
-    authType?: string
+    type: AIProviderType
+    authType?: AIAuthType
     baseUrl?: string
     model: string
     apiKey?: string
@@ -36,7 +36,7 @@ export class AIProviderService {
     isDefault?: boolean
     enabled?: boolean
   }): Promise<AIProviderDto> {
-    const manifest = aiProviderRegistry.get(input.type as AIProviderType).manifest()
+    const manifest = aiProviderRegistry.get(input.type).manifest()
     const shouldBeDefault = input.isDefault ?? (await prisma.aIProvider.count()) === 0
     const providerId = input.id ?? randomUUID()
     const secret = input.apiKey?.trim()
@@ -128,19 +128,19 @@ export class AIProviderService {
 
   testConfig(input: {
     name: string
-    type: string
-    authType?: string
+    type: AIProviderType
+    authType?: AIAuthType
     baseUrl?: string
     model: string
     apiKey?: string
   }): Promise<{ ok: boolean; message: string }> {
-    const adapter = aiProviderRegistry.get(input.type as AIProviderType)
+    const adapter = aiProviderRegistry.get(input.type)
     const manifest = adapter.manifest()
     const runtimeConfig = {
       id: 'draft',
       name: input.name || manifest.name,
       type: manifest.type,
-      authType: (input.authType ?? manifest.authType) as AIAuthType,
+      authType: input.authType ?? manifest.authType,
       apiKey: input.apiKey?.trim() || null,
       baseUrl: input.baseUrl || manifest.defaultBaseUrl,
       model: input.model || manifest.defaultModel

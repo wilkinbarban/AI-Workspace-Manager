@@ -30,11 +30,11 @@ Responde siempre de forma analítica y útil. REGLA MUY IMPORTANTE: Cuando termi
     ]
 
     const tools = allSkills.map(skill => ({
-      type: 'function',
+      type: 'function' as const,
       function: {
         name: skill.name,
         description: skill.description,
-        parameters: skill.schema
+        parameters: skill.schema as unknown as Record<string, unknown>
       }
     }))
 
@@ -50,7 +50,7 @@ Responde siempre de forma analítica y útil. REGLA MUY IMPORTANTE: Cuando termi
 
       try {
         const result = await this.options.provider.chat(this.options.config, {
-          taskType: 'analysis' as any,
+          taskType: 'analysis',
           responseFormat: 'text',
           messages,
           tools
@@ -90,9 +90,10 @@ Responde siempre de forma analítica y útil. REGLA MUY IMPORTANTE: Cuando termi
                     })
                   }
                 }
-                toolResult = await skill.execute(args, contextWithDiff)
-              } catch (err: any) {
-                toolResult = `Error ejecutando herramienta: ${err.message}`
+                const rawToolResult = await skill.execute(args, contextWithDiff)
+                toolResult = String(rawToolResult)
+              } catch (error) {
+                toolResult = `Error ejecutando herramienta: ${errorMessage(error)}`
               }
             }
 
@@ -117,12 +118,12 @@ Responde siempre de forma analítica y útil. REGLA MUY IMPORTANTE: Cuando termi
           })
           return result.content || ''
         }
-      } catch (err: any) {
+      } catch (error) {
         this.options.onEvent({
           type: 'error',
-          message: `Error en la comunicación con el LLM: ${err.message}`
+          message: `Error en la comunicación con el LLM: ${errorMessage(error)}`
         })
-        throw err
+        throw error
       }
     }
 
@@ -130,4 +131,8 @@ Responde siempre de forma analítica y útil. REGLA MUY IMPORTANTE: Cuando termi
     this.options.onEvent({ type: 'error', message: maxErr })
     return maxErr
   }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Error desconocido.'
 }

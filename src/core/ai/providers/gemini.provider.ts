@@ -4,6 +4,7 @@ import type {
   AIChatRequest,
   AIChatResult,
   AIToolCall,
+  AIToolDefinition,
   AIProviderRuntimeConfig
 } from '@core/ai/core/ai-provider.interface'
 import { OpenAICompatibleProvider } from './base.provider'
@@ -267,10 +268,10 @@ function buildContents(messages: AIChatMessage[]): {
  *
  * JSON Schema type names must be UPPERCASE in Gemini (STRING, NUMBER, etc.).
  */
-function adaptTools(tools: any[]): GeminiFunctionDeclaration[] {
+function adaptTools(tools: AIToolDefinition[]): GeminiFunctionDeclaration[] {
   return tools.map((tool) => {
-    const fn = tool.function ?? tool
-    const params = fn.parameters ?? fn.input_schema
+    const fn = tool.function
+    const params = fn.parameters
 
     const declaration: GeminiFunctionDeclaration = { name: fn.name }
     if (fn.description) declaration.description = fn.description
@@ -287,13 +288,13 @@ function adaptTools(tools: any[]): GeminiFunctionDeclaration[] {
 }
 
 /** Recursively converts JSON Schema type values to Gemini's UPPERCASE format. */
-function uppercaseJsonSchemaTypes(schema: Record<string, any>): Record<string, any> {
-  const result: Record<string, any> = {}
+function uppercaseJsonSchemaTypes(schema: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(schema)) {
     if (key === 'type' && typeof value === 'string') {
       result[key] = value.toUpperCase()
     } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-      result[key] = uppercaseJsonSchemaTypes(value)
+      result[key] = uppercaseJsonSchemaTypes(value as Record<string, unknown>)
     } else {
       result[key] = value
     }

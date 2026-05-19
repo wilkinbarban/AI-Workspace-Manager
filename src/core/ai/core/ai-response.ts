@@ -17,38 +17,14 @@ export function normalizeAIResponse(rawContent: string): AIAnalysisResponse {
   }
 }
 
-export function extractTextFromUnknown(value: unknown): string {
-  if (typeof value === 'string') return value
-  if (!value || typeof value !== 'object') return ''
-
-  const data = value as Record<string, any>
-  const openAIContent = data.choices?.[0]?.message?.content
-  if (typeof openAIContent === 'string') return openAIContent
-
-  const anthropicContent = data.content?.[0]?.text
-  if (typeof anthropicContent === 'string') return anthropicContent
-
-  const geminiContent = data.candidates?.[0]?.content?.parts?.[0]?.text
-  if (typeof geminiContent === 'string') return geminiContent
-
-  const ollamaContent = data.message?.content
-  if (typeof ollamaContent === 'string') return ollamaContent
-
-  const cohereContent = data.message?.content?.[0]?.text
-  if (typeof cohereContent === 'string') return cohereContent
-
-  return ''
-}
-
 export function extractUsageFromUnknown(value: unknown) {
   if (!value || typeof value !== 'object') {
     return { inputTokens: null, outputTokens: null, totalTokens: null, remainingTokens: null, estimatedCostUsd: null, isEstimate: true }
   }
 
-  const data = value as Record<string, any>
-  const usage = data.usage ?? data.meta?.tokens ?? {}
-  const inputTokens = usage.prompt_tokens ?? usage.input_tokens ?? usage.inputTokens ?? data.prompt_eval_count ?? null
-  const outputTokens = usage.completion_tokens ?? usage.output_tokens ?? usage.outputTokens ?? data.eval_count ?? null
+  const usage = asRecord(getPath(value, ['usage']) ?? getPath(value, ['meta', 'tokens'])) ?? {}
+  const inputTokens = usage.prompt_tokens ?? usage.input_tokens ?? usage.inputTokens ?? getPath(value, ['prompt_eval_count']) ?? null
+  const outputTokens = usage.completion_tokens ?? usage.output_tokens ?? usage.outputTokens ?? getPath(value, ['eval_count']) ?? null
   const totalTokens = usage.total_tokens ?? usage.totalTokens ?? sumNullable(inputTokens, outputTokens)
 
   return {
@@ -81,4 +57,26 @@ function sumNullable(a: unknown, b: unknown): number | null {
   const right = numberOrNull(b)
   if (left == null && right == null) return null
   return (left ?? 0) + (right ?? 0)
+}
+
+function getPath(value: unknown, path: Array<string | number>): unknown {
+  let current = value
+
+  for (const segment of path) {
+    if (typeof segment === 'number') {
+      if (!Array.isArray(current)) return undefined
+      current = current[segment]
+      continue
+    }
+
+    const record = asRecord(current)
+    if (!record) return undefined
+    current = record[segment]
+  }
+
+  return current
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
 }

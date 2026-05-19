@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { isPathInsideWorkspace } from '@core/utils/path-security'
 import type { Skill, SkillContext } from './skill.types'
 
 export interface ListDirInput {
@@ -23,8 +24,7 @@ export const listDirSkill: Skill<ListDirInput, string> = {
     try {
       const targetPath = path.resolve(context.projectPath, input.directoryPath || '.')
       
-      // Seguridad: Path traversal check
-      if (!targetPath.startsWith(context.projectPath)) {
+      if (!isPathInsideWorkspace(context.projectPath, targetPath)) {
         return `Error: Acceso denegado. No puedes leer fuera de ${context.projectPath}`
       }
 
@@ -34,8 +34,9 @@ export const listDirSkill: Skill<ListDirInput, string> = {
       }).join('\n')
 
       return result || '(Directorio vacío)'
-    } catch (err: any) {
-      return `Error al leer directorio: ${err.message}`
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error desconocido.'
+      return `Error al leer directorio: ${message}`
     }
   }
 }

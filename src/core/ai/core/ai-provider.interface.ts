@@ -9,6 +9,15 @@ export interface AIToolCall {
   }
 }
 
+export interface AIToolDefinition {
+  type: 'function'
+  function: {
+    name: string
+    description: string
+    parameters: Record<string, unknown>
+  }
+}
+
 export interface AIChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
   content: string | null
@@ -22,7 +31,7 @@ export interface AIChatRequest {
   messages: AIChatMessage[]
   taskType: AITaskType
   responseFormat?: 'json' | 'text'
-  tools?: any[]
+  tools?: AIToolDefinition[]
 }
 
 export interface AIUsageReport {
@@ -53,8 +62,8 @@ export interface AIProviderRuntimeConfig {
 }
 
 /**
- * Standard interface for all AI Providers (OpenAI, Anthropic, Gemini, etc.).
- * Adapters must implement this to ensure consistent behavior across the application.
+ * Contrato unico que deben implementar todos los proveedores IA.
+ * Mantiene un comportamiento consistente entre OpenAI, Anthropic, Gemini y otros adaptadores.
  */
 export interface AIProviderAdapter {
   readonly id: AIProviderType
@@ -67,22 +76,21 @@ export interface AIProviderAdapter {
   readonly supportsVision: boolean
   readonly supportsLocal: boolean
 
-  /** Generates the provider manifest for UI configuration. */
+  /** Devuelve el manifest usado por la interfaz de configuracion. */
   manifest(): AIProviderManifest
 
-  /** Validates if the given configuration is correct for this provider. */
+  /** Valida si la configuracion es suficiente para ejecutar el proveedor. */
   validateConfig(config: AIProviderRuntimeConfig): { ok: boolean; message: string }
 
-  /** Tests the connection to the provider's API. */
+  /** Prueba la conexion real con la API del proveedor. */
   testConnection(config: AIProviderRuntimeConfig): Promise<{ ok: boolean; message: string }>
 
-  /** Sends a chat completion request to the provider. */
+  /** Envia una solicitud de chat al proveedor. */
   chat(config: AIProviderRuntimeConfig, request: AIChatRequest): Promise<AIChatResult>
 
-  /** Streams a chat completion request to the provider. */
+  /** Envia una solicitud de chat en streaming si el proveedor lo soporta. */
   streamChat?(config: AIProviderRuntimeConfig, request: AIChatRequest): AsyncIterable<string>
 
-  /** Retrieves the latest usage report for token tracking. */
+  /** Devuelve el ultimo reporte de uso cuando el proveedor lo expone. */
   getUsage?(): Promise<AIUsageReport | null>
 }
-

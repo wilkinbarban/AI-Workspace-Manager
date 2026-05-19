@@ -164,41 +164,23 @@ export class OpenAICompatibleProvider implements AIProviderAdapter {
   }
 }
 
-export class PreparedProvider extends OpenAICompatibleProvider {
-  override validateConfig(config: AIProviderRuntimeConfig): { ok: boolean; message: string } {
-    if (this.options.requiresApiKey && !config.apiKey) {
-      return { ok: false, message: `${this.name} requiere credenciales externas.` }
-    }
-
-    return { ok: true, message: `${this.name} esta preparado como integracion experimental.` }
-  }
-
-  override async testConnection(): Promise<{ ok: boolean; message: string }> {
-    return {
-      ok: false,
-      message: `${this.name} esta preparado, pero el flujo de autenticacion externo aun no esta activado.`
-    }
-  }
-
-  override async chat(): Promise<AIChatResult> {
-    throw new Error(`${this.name} esta preparado, pero no puede ejecutar chat hasta completar autenticacion externa.`)
-  }
-}
-
 function extractProviderErrorMessage(data: unknown): string | null {
   if (!data) return null
   if (typeof data === 'string') return data
   if (typeof data !== 'object') return null
 
-  const record = data as Record<string, any>
+  const record = data as Record<string, unknown>
+  const nestedError = record.error && typeof record.error === 'object'
+    ? record.error as Record<string, unknown>
+    : null
   const candidates = [
-    record.error?.message,
-    record.error?.code,
+    nestedError?.message,
+    nestedError?.code,
     record.message,
     record.detail,
     record.code
   ]
-  const message = candidates.find((candidate) => typeof candidate === 'string' && candidate.trim())
+  const message = candidates.find((candidate): candidate is string => typeof candidate === 'string' && Boolean(candidate.trim()))
 
   return message ?? null
 }

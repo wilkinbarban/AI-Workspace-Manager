@@ -39,17 +39,17 @@ const LANGUAGE_BY_EXTENSION: Record<string, string> = {
 }
 
 /**
- * Scanner for analyzing workspace directories.
- * It detects languages, frameworks, dependencies, large files, and calculates project health.
+ * Analizador local de workspaces.
+ * Detecta lenguajes, frameworks, dependencias, archivos grandes y calcula una puntuacion de salud del proyecto.
  */
 export class WorkspaceScanner {
   /**
-   * Scans a workspace path and returns a comprehensive analysis including file tree,
-   * dependencies, detected problems, recommendations, and a health score.
+   * Escanea una carpeta de proyecto y devuelve un analisis con arbol de archivos,
+   * dependencias, problemas detectados, recomendaciones y health score.
    *
-   * @param workspacePath The absolute path to the directory to scan.
-   * @returns A promise that resolves to the WorkspaceAnalysis.
-   * @throws Error if the path is not a directory.
+   * @param workspacePath Ruta absoluta de la carpeta a analizar.
+   * @returns Analisis estructurado del workspace.
+   * @throws Error si la ruta no es una carpeta.
    */
   async scan(workspacePath: string): Promise<WorkspaceAnalysis> {
     const stat = await fs.stat(workspacePath)
@@ -130,7 +130,7 @@ export class WorkspaceScanner {
     }
   }
 
-  private async readPackageJson(workspacePath: string): Promise<Record<string, any> | null> {
+  private async readPackageJson(workspacePath: string): Promise<Record<string, unknown> | null> {
     const packagePath = path.join(workspacePath, 'package.json')
 
     if (!(await fs.pathExists(packagePath))) {
@@ -155,7 +155,7 @@ export class WorkspaceScanner {
   }
 
   private detectDependencies(
-    packageJson: Record<string, any> | null,
+    packageJson: Record<string, unknown> | null,
     pyproject: string | null,
     requirements: string | null
   ): string[] {
@@ -187,10 +187,16 @@ export class WorkspaceScanner {
 
   private detectLanguage(
     files: string[],
-    packageJson: Record<string, any> | null,
+    packageJson: Record<string, unknown> | null,
     pyproject: string | null
   ): string | null {
-    if (packageJson?.devDependencies?.typescript || files.some((file) => file.endsWith('.ts') || file.endsWith('.tsx'))) {
+    const devDependencies = packageJson?.devDependencies
+    const hasTypescriptDependency = Boolean(
+      devDependencies &&
+      typeof devDependencies === 'object' &&
+      'typescript' in devDependencies
+    )
+    if (hasTypescriptDependency || files.some((file) => file.endsWith('.ts') || file.endsWith('.tsx'))) {
       return 'TypeScript'
     }
 

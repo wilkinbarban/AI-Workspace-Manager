@@ -1,6 +1,13 @@
 import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { IPC_CHANNELS } from '@shared/constants/ipc'
-import { askProjectSchema, createTaskSchema, projectIdSchema, saveAIProviderSchema } from '@shared/schemas/api'
+import {
+  askProjectSchema,
+  createTaskSchema,
+  projectIdSchema,
+  runAgentSchema,
+  saveAIProviderSchema,
+  taskIdSchema
+} from '@shared/schemas/api'
 import { AIOrchestrator } from '@main/services/ai-orchestrator'
 import { AIProviderService } from '@main/services/ai-provider-service'
 import { AIUsageService } from '@main/services/ai-usage-service'
@@ -46,8 +53,8 @@ export function registerIpcHandlers(): void {
     })
   })
 
-  safeHandle(IPC_CHANNELS.ai.runAgent, async (input: any, event) => {
-    return aiOrchestrator.runAgent(input, (agentEvent) => {
+  safeHandle(IPC_CHANNELS.ai.runAgent, async (input: unknown, event) => {
+    return aiOrchestrator.runAgent(runAgentSchema.parse(input), (agentEvent) => {
       event.sender.send(IPC_CHANNELS.ai.agentEvent, agentEvent)
     })
   })
@@ -62,7 +69,7 @@ export function registerIpcHandlers(): void {
   })
 
   safeHandle(IPC_CHANNELS.tasks.complete, async (input: unknown) => {
-    return taskService.complete(input as string)
+    return taskService.complete(taskIdSchema.parse(input))
   })
 
   safeHandle(IPC_CHANNELS.memory.list, async (input: unknown) => {

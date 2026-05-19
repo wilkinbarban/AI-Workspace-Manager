@@ -17,9 +17,9 @@ export interface SkillContext {
   onFileDiff?: (diff: { filePath: string; before: string | null; after: string }) => void;
 }
 
-export interface Skill<TInput = any, TOutput = any> {
+export interface Skill<TInput = unknown, TOutput = unknown> {
   name: string;
   description: string;
   schema: SkillSchema;
-  execute: (input: TInput, context: SkillContext) => Promise<TOutput>;
+  execute(input: TInput, context: SkillContext): Promise<TOutput>;
 }

@@ -175,8 +175,8 @@ const webDemoApi: AppApi = {
     saveAIProvider: async (input) => ({
       id: input.id ?? 'demo-provider',
       name: input.name,
-      type: input.type as any,
-      authType: (input.authType as any) ?? 'bearer',
+      type: input.type,
+      authType: input.authType ?? 'bearer',
       baseUrl: input.baseUrl || 'https://api.deepseek.com',
       model: input.model,
       maskedSecret: input.apiKey ? 'sk-****demo' : null,

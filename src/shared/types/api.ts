@@ -1,7 +1,10 @@
 import type {
   AIProjectAnswer,
+  AgentEvent,
+  AIAuthType,
   AIProviderManifest,
   AIProviderDto,
+  AIProviderType,
   AIUsageSummaryDto,
   AITaskType,
   MemoryEntryDto,
@@ -23,7 +26,7 @@ export interface AppApi {
   ai: {
     askProject: (input: { projectId: string; message: string; providerId?: string; taskType?: AITaskType }) => Promise<AIProjectAnswer>
     runAgent: (input: { projectId: string; prompt: string; providerId?: string }) => Promise<string>
-    onAgentEvent: (callback: (event: any) => void) => () => void
+    onAgentEvent: (callback: (event: AgentEvent) => void) => () => void
   }
   tasks: {
     list: (projectId: string) => Promise<TaskDto[]>
@@ -37,8 +40,8 @@ export interface AppApi {
     saveAIProvider: (input: {
       id?: string
       name: string
-      type: string
-      authType?: string
+      type: AIProviderType
+      authType?: AIAuthType
       baseUrl?: string
       model: string
       apiKey?: string
@@ -52,8 +55,8 @@ export interface AppApi {
     getAISetupState: () => Promise<{ hasConfiguredProvider: boolean; defaultProviderId: string | null }>
     testAIProviderConfig: (input: {
       name: string
-      type: string
-      authType?: string
+      type: AIProviderType
+      authType?: AIAuthType
       baseUrl?: string
       model: string
       apiKey?: string

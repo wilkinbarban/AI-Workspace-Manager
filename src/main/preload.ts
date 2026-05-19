@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { IPC_CHANNELS } from '@shared/constants/ipc'
 import type { AppApi } from '@shared/types/api'
+import type { AgentEvent } from '@shared/types/workspace'
 
 const api: AppApi = {
   projects: {
@@ -16,7 +17,7 @@ const api: AppApi = {
     askProject: (input) => ipcRenderer.invoke(IPC_CHANNELS.ai.askProject, input),
     runAgent: (input) => ipcRenderer.invoke(IPC_CHANNELS.ai.runAgent, input),
     onAgentEvent: (callback) => {
-      const listener = (_event: IpcRendererEvent, payload: any) => callback(payload)
+      const listener = (_event: IpcRendererEvent, payload: AgentEvent) => callback(payload)
       ipcRenderer.on(IPC_CHANNELS.ai.agentEvent, listener)
       return () => ipcRenderer.off(IPC_CHANNELS.ai.agentEvent, listener)
     }

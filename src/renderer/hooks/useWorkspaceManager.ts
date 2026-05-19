@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type {
   AIProjectAnswer,
+  AIAuthType,
   AIProviderManifest,
   AIProviderDto,
+  AIProviderType,
   AIUsageSummaryDto,
   AITaskType,
   MemoryEntryDto,
@@ -235,8 +237,9 @@ export function useWorkspaceManager() {
     
     try {
       await appApi.ai.runAgent({ projectId: selectedProjectId, prompt, providerId: activeProvider?.id })
-    } catch (err: any) {
-      setAgentEvents((prev) => [...prev, { type: 'error', message: err.message }])
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error inesperado al ejecutar el agente.'
+      setAgentEvents((prev) => [...prev, { type: 'error', message }])
       setIsAgentRunning(false)
       setActiveTaskId(undefined)
     }
@@ -246,7 +249,8 @@ export function useWorkspaceManager() {
     async (input: {
       id?: string
       name: string
-      type: string
+      type: AIProviderType
+      authType?: AIAuthType
       baseUrl?: string
       model: string
       apiKey?: string
@@ -264,7 +268,14 @@ export function useWorkspaceManager() {
   )
 
   const testProviderConfig = useCallback(
-    async (input: { name: string; type: string; authType?: string; baseUrl?: string; model: string; apiKey?: string }) => {
+    async (input: {
+      name: string
+      type: AIProviderType
+      authType?: AIAuthType
+      baseUrl?: string
+      model: string
+      apiKey?: string
+    }) => {
       const result = await run(() => appApi.settings.testAIProviderConfig(input))
 
       if (result) {

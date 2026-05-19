@@ -1,25 +1,25 @@
 export type TaskStatus = 'pending' | 'approved' | 'running' | 'completed' | 'failed' | 'cancelled'
 
-export type RiskLevel = 'low' | 'medium' | 'high'
+export const RISK_LEVELS = ['low', 'medium', 'high'] as const
+export type RiskLevel = (typeof RISK_LEVELS)[number]
 
-export type AIProviderType =
-  | 'openai'
-  | 'anthropic'
-  | 'deepseek'
-  | 'gemini'
-  | 'openrouter'
+export const AI_PROVIDER_TYPES = ['openai', 'anthropic', 'deepseek', 'gemini', 'openrouter'] as const
+export type AIProviderType = (typeof AI_PROVIDER_TYPES)[number]
 
-export type AIAuthType = 'api-key' | 'bearer' | 'x-api-key' | 'local-url' | 'oauth' | 'aws-iam' | 'service-account'
+export const AI_AUTH_TYPES = ['api-key', 'bearer', 'x-api-key', 'local-url', 'oauth', 'aws-iam', 'service-account'] as const
+export type AIAuthType = (typeof AI_AUTH_TYPES)[number]
 
-export type AITaskType =
-  | 'analysis'
-  | 'code-generation'
-  | 'documentation'
-  | 'refactor'
-  | 'agent'
-  | 'bug-review'
-  | 'test-generation'
-  | 'upgrade'
+export const AI_TASK_TYPES = [
+  'analysis',
+  'code-generation',
+  'documentation',
+  'refactor',
+  'agent',
+  'bug-review',
+  'test-generation',
+  'upgrade'
+] as const
+export type AITaskType = (typeof AI_TASK_TYPES)[number]
 
 export type FileTreeKind = 'file' | 'directory'
 
@@ -192,15 +192,15 @@ export interface AIProjectAnswer {
   usage: AIUsageDto | null
 }
 
-export interface AgentEvent {
-  type: 'thinking' | 'tool_call' | 'tool_result' | 'done' | 'error' | 'file_diff'
-  message: string
-  payload?: any
-}
-
 export interface FileDiffEntry {
   filePath: string
-  before: string | null   // null = archivo nuevo
+  before: string | null
   after: string
   taskId?: string
 }
+
+export type AgentEvent =
+  | { type: 'thinking' | 'done' | 'error'; message: string }
+  | { type: 'tool_call'; message: string; payload: { name: string; arguments: string } }
+  | { type: 'tool_result'; message: string; payload: { result: string } }
+  | { type: 'file_diff'; message: string; payload: FileDiffEntry }

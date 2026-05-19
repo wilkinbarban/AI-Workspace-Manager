@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { isPathInsideWorkspace } from '@core/utils/path-security'
 import type { Skill, SkillContext } from './skill.types'
 
 export interface WriteFileInput {
@@ -28,8 +29,7 @@ export const writeFileSkill: Skill<WriteFileInput, string> = {
     try {
       const targetPath = path.resolve(context.projectPath, input.filePath)
 
-      // Seguridad: Path traversal check
-      if (!targetPath.startsWith(context.projectPath)) {
+      if (!isPathInsideWorkspace(context.projectPath, targetPath)) {
         return `Error: Acceso denegado. No puedes escribir fuera de ${context.projectPath}`
       }
 
@@ -57,8 +57,9 @@ export const writeFileSkill: Skill<WriteFileInput, string> = {
       }
 
       return `Éxito: Archivo ${input.filePath} modificado correctamente.`
-    } catch (err: any) {
-      return `Error al escribir archivo: ${err.message}`
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error desconocido.'
+      return `Error al escribir archivo: ${message}`
     }
   }
 }

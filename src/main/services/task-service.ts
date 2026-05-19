@@ -26,25 +26,33 @@ export class TaskService {
   }
 
   async createFromAI(projectId: string, response: AIAnalysisResponse): Promise<TaskDto[]> {
-    await prisma.task.deleteMany({ where: { projectId } })
+    const existingTasks = await prisma.task.findMany({
+      where: { projectId },
+      select: { title: true }
+    })
+    const existingTitles = new Set(existingTasks.map((task) => normalizeTaskTitle(task.title)))
 
     const created: TaskDto[] = []
 
     for (const task of response.tasks.slice(0, 20)) {
-      if (!task.title.trim()) {
+      const title = task.title.trim()
+      const normalizedTitle = normalizeTaskTitle(title)
+
+      if (!title || existingTitles.has(normalizedTitle)) {
         continue
       }
 
       const record = await prisma.task.create({
         data: {
           projectId,
-          title: task.title.trim(),
+          title,
           description: task.description?.trim() || null,
           source: 'ai',
           riskLevel: task.riskLevel ?? response.riskLevel
         }
       })
 
+      existingTitles.add(normalizedTitle)
       created.push(toTaskDto(record))
     }
 
@@ -58,4 +66,8 @@ export class TaskService {
     })
     return toTaskDto(task)
   }
+}
+
+function normalizeTaskTitle(title: string): string {
+  return title.trim().toLocaleLowerCase()
 }

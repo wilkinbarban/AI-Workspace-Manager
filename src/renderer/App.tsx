@@ -1,8 +1,10 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import type {
   AIProjectAnswer,
+  AIAuthType,
   AIProviderManifest,
   AIProviderDto,
+  AIProviderType,
   AIUsageSummaryDto,
   AITaskType,
   MemoryEntryDto,
@@ -106,17 +108,17 @@ function AISetupGate(props: {
   manifests: AIProviderManifest[]
   isBusy: boolean
   onSaveProvider: (input: {
-    name: string; type: string; authType?: string; baseUrl?: string
+    name: string; type: AIProviderType; authType?: AIAuthType; baseUrl?: string
     model: string; apiKey?: string; monthlyTokenLimit?: number | null
     isDefault?: boolean; enabled?: boolean
   }) => void
   onTestProviderConfig: (input: {
-    name: string; type: string; authType?: string; baseUrl?: string
+    name: string; type: AIProviderType; authType?: AIAuthType; baseUrl?: string
     model: string; apiKey?: string
   }) => void
 }) {
   const recommended = props.manifests.filter(m => ['deepseek', 'openai', 'anthropic', 'gemini', 'openrouter'].includes(m.type))
-  const [type, setType] = useState<string>(recommended[0]?.type ?? 'deepseek')
+  const [type, setType] = useState<AIProviderType>(recommended[0]?.type ?? 'deepseek')
   const manifest = props.manifests.find(m => m.type === type) ?? recommended[0]
   const [apiKey, setApiKey] = useState('')
   const [baseUrl, setBaseUrl] = useState(manifest?.defaultBaseUrl ?? '')
@@ -128,7 +130,7 @@ function AISetupGate(props: {
     setModel(prev => prev || manifest.defaultModel)
   }, [manifest])
 
-  function choose(nextType: string) {
+  function choose(nextType: AIProviderType) {
     const next = props.manifests.find(m => m.type === nextType)
     setType(nextType)
     setBaseUrl(next?.defaultBaseUrl ?? '')
