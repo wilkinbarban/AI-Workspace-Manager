@@ -92,19 +92,34 @@ async function rebuildFromArtifact() {
 
 async function extractElectronZip(zipPath, destination) {
   if (process.platform === 'win32') {
+    const extractScript = path.join(os.tmpdir(), `ai-workspace-electron-extract-${process.pid}.ps1`)
+    fs.writeFileSync(
+      extractScript,
+      [
+        'param(',
+        '  [Parameter(Mandatory = $true)][string]$ZipPath,',
+        '  [Parameter(Mandatory = $true)][string]$Destination',
+        ')',
+        'Expand-Archive -LiteralPath $ZipPath -DestinationPath $Destination -Force'
+      ].join('\n'),
+      'utf8'
+    )
+
     const result = childProcess.spawnSync(
       'powershell.exe',
       [
         '-NoProfile',
         '-ExecutionPolicy',
         'Bypass',
-        '-Command',
-        'Expand-Archive -LiteralPath $args[0] -DestinationPath $args[1] -Force',
+        '-File',
+        extractScript,
         zipPath,
         destination
       ],
       { stdio: 'inherit' }
     )
+
+    fs.rmSync(extractScript, { force: true })
 
     if (result.status !== 0) {
       throw new Error(`PowerShell Expand-Archive failed with exit code ${result.status}.`)

@@ -132,6 +132,19 @@ function Wait-ProcessWithSpinner {
     Write-Host -NoNewline "`r    - $Message... completado.          `n"
 }
 
+function ConvertTo-ProcessArgumentString {
+    param([string[]]$Arguments)
+
+    return ($Arguments | ForEach-Object {
+            if ($_ -match '[\s"]') {
+                '"' + ($_ -replace '"', '\"') + '"'
+            }
+            else {
+                $_
+            }
+        }) -join ' '
+}
+
 function Invoke-LoggedCommand {
     param(
         [Parameter(Mandatory = $true)]
@@ -149,49 +162,49 @@ function Invoke-LoggedCommand {
     $displayCommand = "$FilePath $($Arguments -join ' ')"
     Write-Log "COMMAND: $displayCommand"
 
-    $stdoutLog = Join-Path $env:TEMP "AI-Workspace-Manager-stdout-$([guid]::NewGuid()).log"
-    $stderrLog = Join-Path $env:TEMP "AI-Workspace-Manager-stderr-$([guid]::NewGuid()).log"
+    $stdout = $null
+    $stderr = $null
 
     try {
         $commandPath = Resolve-CommandExecutable -FilePath $FilePath
-        $process = Start-Process `
-            -FilePath $commandPath `
-            -ArgumentList $Arguments `
-            -NoNewWindow `
-            -PassThru `
-            -RedirectStandardOutput $stdoutLog `
-            -RedirectStandardError $stderrLog
+
+        $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $startInfo.FileName = $commandPath
+        $startInfo.Arguments = ConvertTo-ProcessArgumentString -Arguments $Arguments
+        $startInfo.WorkingDirectory = (Get-Location).Path
+        $startInfo.UseShellExecute = $false
+        $startInfo.CreateNoWindow = $true
+        $startInfo.RedirectStandardOutput = $true
+        $startInfo.RedirectStandardError = $true
+
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $startInfo
+        $null = $process.Start()
+
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
 
         Wait-ProcessWithSpinner -Process $process -Message $Activity
         $process.WaitForExit()
-        $process.Refresh()
         $exitCode = $process.ExitCode
+        $stdout = $stdoutTask.Result
+        $stderr = $stderrTask.Result
 
         if ($null -eq $exitCode) {
             throw "$FailureMessage El proceso termino sin devolver codigo de salida."
         }
 
-        if (Test-Path $stdoutLog) {
-            $stdout = Get-Content -Path $stdoutLog -Raw -ErrorAction SilentlyContinue
-            if ($stdout -and $stdout.Trim()) {
-                Add-Content -Path $script:InstallLog -Value $stdout -Encoding UTF8
-            }
+        if ($stdout -and $stdout.Trim()) {
+            Add-Content -Path $script:InstallLog -Value $stdout -Encoding UTF8
         }
 
-        if (Test-Path $stderrLog) {
-            $stderr = Get-Content -Path $stderrLog -Raw -ErrorAction SilentlyContinue
-            if ($stderr -and $stderr.Trim()) {
-                Add-Content -Path $script:InstallLog -Value $stderr -Encoding UTF8
-            }
+        if ($stderr -and $stderr.Trim()) {
+            Add-Content -Path $script:InstallLog -Value $stderr -Encoding UTF8
         }
     }
     finally {
-        if (Test-Path $stdoutLog) {
-            Remove-Item -LiteralPath $stdoutLog -Force -ErrorAction SilentlyContinue
-        }
-
-        if (Test-Path $stderrLog) {
-            Remove-Item -LiteralPath $stderrLog -Force -ErrorAction SilentlyContinue
+        if ($process) {
+            $process.Dispose()
         }
     }
 
