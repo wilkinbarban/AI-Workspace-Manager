@@ -10,63 +10,54 @@ import type {
 import { OpenAICompatibleProvider } from './base.provider'
 import { normalizeAIResponse } from '@core/ai/core/ai-response'
 
-// ─── Architecture note ────────────────────────────────────────────────────────
+// Nota de arquitectura
 //
-// Gemini is NOT OpenAI-compatible. Differences at the wire level:
+// Gemini no es OpenAI-compatible. Diferencias del protocolo:
 //
-//  Auth:       ?key=<API_KEY> query param  OR  x-goog-api-key header
-//              (NOT Authorization: Bearer)
+//  Auth:       query param ?key=<API_KEY> o header x-goog-api-key.
 //
 //  Endpoint:   POST /v1beta/models/{model}:generateContent
 //              POST /v1beta/models/{model}:streamGenerateContent?alt=sse
 //
-//  Messages:   `contents[]` array  — NOT `messages[]`
-//              Each element: { role: "user"|"model", parts: Part[] }
-//              System prompt → top-level `systemInstruction` field
-//              Role names: "user" and "model" (NOT "assistant")
+//  Mensajes:   arreglo `contents[]`; cada elemento tiene role y parts.
+//              El system prompt viaja como `systemInstruction` top-level.
+//              Roles: "user" y "model", no "assistant".
 //
-//  Parts:      { text: "..." }                     — plain text
-//              { inlineData: { mimeType, data } }  — base64 image
-//              { fileData: { mimeType, fileUri } }  — GCS/AI Studio file
-//              { functionCall: { name, args } }     — model calling a tool
-//              { functionResponse: { name, response } } — tool result
+//  Parts:      text, inlineData, fileData, functionCall y functionResponse.
 //
-//  Tools:      { functionDeclarations: [{ name, description, parameters }] }
-//              parameters use JSON Schema style with UPPERCASE type names
+//  Tools:      functionDeclarations con JSON Schema y tipos en mayusculas.
 //
-//  Response:   candidates[0].content.parts[0].text
+//  Respuesta:  candidates[0].content.parts[0].text
 //              usageMetadata.promptTokenCount / candidatesTokenCount
 //
-//  Streaming:  streamGenerateContent?alt=sse → SSE stream
-//              Each data: line is a full GenerateContentResponse JSON
+//  Streaming:  streamGenerateContent?alt=sse; cada data es una respuesta JSON.
 
-// ─── Official Gemini model IDs (May 2026) ─────────────────────────────────────
+// IDs oficiales de modelos Gemini (mayo 2026)
 //
-// Source: https://ai.google.dev/gemini-api/docs/models/gemini
+// Fuente: https://ai.google.dev/gemini-api/docs/models/gemini
 //
-// Gemini 2.5 family (generally available, recommended for all new projects)
-//   gemini-2.5-pro    Most capable model: complex reasoning, coding, analysis
-//   gemini-2.5-flash  Best speed/quality balance; recommended default
-//   gemini-2.5-flash-lite  Cost-optimised for high-volume classification/extraction
+// Familia Gemini 2.5: recomendada para proyectos nuevos.
+//   gemini-2.5-pro         Mayor capacidad para razonamiento, codigo y analisis.
+//   gemini-2.5-flash       Mejor balance velocidad/calidad.
+//   gemini-2.5-flash-lite  Optimizado para alto volumen y bajo costo.
 //
-// NOTE: "gemini-3.0-flash" and "gemini-3.0-pro" do NOT exist. They were
-// placeholder identifiers added in a prior migration pass. Replaced below.
-// "gemini-2.0-flash" is deprecated as of March 2026.
+// NOTA: "gemini-3.0-flash" y "gemini-3.0-pro" no existen; fueron placeholders.
+// "gemini-2.0-flash" esta deprecado desde marzo de 2026.
 
-/** Official, verified Google Gemini model IDs. */
+/** IDs oficiales y verificados de Google Gemini. */
 const GEMINI_MODELS = {
-  /** Most capable Gemini model — advanced reasoning, 1M token context. */
+  /** Modelo Gemini mas capaz: razonamiento avanzado y contexto 1M. */
   PRO_25: 'gemini-2.5-pro',
-  /** Best speed/quality balance — recommended default for production. */
+  /** Mejor balance velocidad/calidad para produccion. */
   FLASH_25: 'gemini-2.5-flash',
-  /** Cost-optimised — high-volume extraction and classification. */
+  /** Optimizado en costo para extraccion y clasificacion masiva. */
   FLASH_25_LITE: 'gemini-2.5-flash-lite'
 } as const
 
-/** Base URL for Google AI Studio Gemini REST API. */
+/** URL base de la API REST Gemini de Google AI Studio. */
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta' as const
 
-// ─── Gemini-native wire types ─────────────────────────────────────────────────
+// Tipos nativos del protocolo Gemini
 
 interface GeminiTextPart { text: string }
 interface GeminiInlineDataPart { inlineData: { mimeType: string; data: string } }
@@ -83,14 +74,14 @@ type GeminiPart =
   | GeminiFunctionCallPart
   | GeminiFunctionResponsePart
 
-/** A single turn in a Gemini conversation. */
+/** Turno individual en una conversacion Gemini. */
 interface GeminiContent {
-  /** "user" or "model" — Gemini does NOT use "assistant" or "system" */
+  /** Gemini usa "user" o "model"; no usa "assistant" ni "system". */
   role: 'user' | 'model'
   parts: GeminiPart[]
 }
 
-/** Function declaration shape accepted by Gemini tools. */
+/** Forma de declaracion de funcion aceptada por Gemini tools. */
 interface GeminiFunctionDeclaration {
   name: string
   description?: string
@@ -101,7 +92,7 @@ interface GeminiFunctionDeclaration {
   }
 }
 
-/** Full Gemini generateContent request body. */
+/** Body completo de request generateContent de Gemini. */
 interface GeminiRequestBody {
   contents: GeminiContent[]
   systemInstruction?: { parts: GeminiTextPart[] }
@@ -117,14 +108,14 @@ interface GeminiRequestBody {
   safetySettings?: Array<{ category: string; threshold: string }>
 }
 
-/** Single candidate in a Gemini response. */
+/** Candidato individual dentro de una respuesta Gemini. */
 interface GeminiCandidate {
   content: GeminiContent
   finishReason: 'STOP' | 'MAX_TOKENS' | 'SAFETY' | 'RECITATION' | 'OTHER' | null
   index: number
 }
 
-/** Full Gemini generateContent response. */
+/** Respuesta completa de generateContent. */
 interface GeminiResponse {
   candidates: GeminiCandidate[]
   usageMetadata?: {
@@ -182,10 +173,10 @@ function buildGeminiParts(raw: string | null): GeminiPart[] {
   return parts.length ? parts : [{ text: '' }]
 }
 
-// ─── Message adapter ──────────────────────────────────────────────────────────
+// Adaptador de mensajes
 
 /**
- * Converts the internal AIChatMessage[] into the Gemini `contents[]` format.
+ * Convierte AIChatMessage[] interno al formato `contents[]` de Gemini.
  *
  * Rules:
  *  - `system` messages → extracted as `systemInstruction` (top-level field)
@@ -257,11 +248,10 @@ function buildContents(messages: AIChatMessage[]): {
   return { contents, systemInstruction }
 }
 
-// ─── Tool adapter ─────────────────────────────────────────────────────────────
+// Adaptador de herramientas
 
 /**
- * Converts the internal OpenAI-style tool definitions into Gemini's
- * `functionDeclarations` format.
+ * Convierte herramientas internas estilo OpenAI a `functionDeclarations` de Gemini.
  *
  * Internal:  { type: "function", function: { name, description, parameters } }
  * Gemini:    { name, description, parameters: { type: "OBJECT", ... } }
@@ -302,7 +292,7 @@ function uppercaseJsonSchemaTypes(schema: Record<string, unknown>): Record<strin
   return result
 }
 
-// ─── Response adapter ─────────────────────────────────────────────────────────
+// Adaptador de respuesta
 
 /**
  * Extracts text content from a Gemini candidate's parts array.
@@ -333,21 +323,21 @@ function extractToolCalls(parts: GeminiPart[]): AIToolCall[] | undefined {
   }))
 }
 
-// ─── Utility ──────────────────────────────────────────────────────────────────
+// Utilidades
 
 function safeParseJson(raw: string): Record<string, unknown> {
   try { return JSON.parse(raw) as Record<string, unknown> }
   catch { return { value: raw } }
 }
 
-// ─── Provider ─────────────────────────────────────────────────────────────────
+// Provider
 
 /**
- * GeminiProvider
+ * Proveedor Gemini.
  *
  * Implements the Google Gemini REST API (`/v1beta/models/{model}:generateContent`).
  *
- * Supported capabilities:
+ * Capacidades soportadas:
  *   - Multi-turn conversations via `contents[]`
  *   - System instructions via top-level `systemInstruction`
  *   - Tool / function calling via `functionDeclarations`
@@ -381,7 +371,7 @@ export class GeminiProvider extends OpenAICompatibleProvider {
     })
   }
 
-  // ─── Validation ─────────────────────────────────────────────────────────────
+  // Validacion
 
   override validateConfig(config: AIProviderRuntimeConfig): { ok: boolean; message: string } {
     const base = super.validateConfig(config)
@@ -419,7 +409,7 @@ export class GeminiProvider extends OpenAICompatibleProvider {
     return this.adaptResponse(response.data, request)
   }
 
-  // ─── Streaming (SSE) ────────────────────────────────────────────────────────
+  // Streaming SSE
 
   /**
    * Streams tokens using `streamGenerateContent?alt=sse`.
@@ -468,16 +458,16 @@ export class GeminiProvider extends OpenAICompatibleProvider {
           const text = extractTextFromParts(parts)
           if (text) yield text
         } catch {
-          // Malformed SSE line — skip silently
+          // Linea SSE malformada: se ignora sin interrumpir el stream.
         }
       }
     }
   }
 
-  // ─── Private helpers ─────────────────────────────────────────────────────────
+  // Helpers privados
 
   /**
-   * Builds the complete Gemini generateContent request body.
+   * Construye el body completo de Gemini generateContent.
    */
   private buildRequestBody(
     config: AIProviderRuntimeConfig,
@@ -510,7 +500,7 @@ export class GeminiProvider extends OpenAICompatibleProvider {
   }
 
   /**
-   * Builds the Gemini headers.
+   * Construye los headers de Gemini.
    * Uses `x-goog-api-key` header (preferred — avoids key exposure in access logs).
    */
   private geminiHeaders(config: AIProviderRuntimeConfig): Record<string, string> {
@@ -542,7 +532,7 @@ export class GeminiProvider extends OpenAICompatibleProvider {
   }
 
   /**
-   * Converts a GeminiResponse to the internal AIChatResult shape.
+   * Convierte GeminiResponse al AIChatResult interno.
    */
   private adaptResponse(data: GeminiResponse, request: AIChatRequest): AIChatResult {
     const candidate = data.candidates?.[0]

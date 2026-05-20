@@ -13,6 +13,10 @@ import type {
   WorkspaceScanDto
 } from './workspace'
 
+/**
+ * Contrato publico expuesto por preload en `window.api`.
+ * Todas las llamadas cruzan IPC y mantienen tipos compartidos entre main y renderer.
+ */
 export interface AppApi {
   projects: {
     openProject: () => Promise<ProjectDto | null>

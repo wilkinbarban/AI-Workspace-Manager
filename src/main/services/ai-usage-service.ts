@@ -4,7 +4,9 @@ import { estimateCostUsd } from '@core/ai/core/ai-usage-pricing'
 import type { AIProviderDto, AIUsageDto, AIUsageSummaryDto, AITaskType } from '@shared/types/workspace'
 import type { AIUsageReport } from '@core/ai/core/ai-provider.interface'
 
+/** Registra consumo de tokens y produce agregados para auditoria de costos IA. */
 export class AIUsageService {
+  /** Persiste el uso de una llamada IA y calcula costo/restante cuando faltan datos del proveedor. */
   async record(input: {
     provider: AIProviderDto
     taskType: AITaskType
@@ -44,6 +46,7 @@ export class AIUsageService {
     return toAIUsageDto(record)
   }
 
+  /** Construye el resumen global usado por la seccion Consumo de AI del renderer. */
   async summary(): Promise<AIUsageSummaryDto> {
     const [history, providers] = await Promise.all([
       prisma.aIUsageLog.findMany({ orderBy: { createdAt: 'desc' }, take: 100 }),
@@ -87,6 +90,7 @@ export class AIUsageService {
     }
   }
 
+  /** Calcula tokens consumidos por un proveedor durante el mes calendario actual. */
   private async usedThisMonth(providerId: string): Promise<number> {
     if (providerId.startsWith('env:')) return 0
     const start = new Date()
@@ -100,6 +104,7 @@ export class AIUsageService {
   }
 }
 
+/** Suma dos contadores opcionales y conserva null cuando ambos datos faltan. */
 function sumNullable(a: number | null, b: number | null): number | null {
   if (a == null && b == null) return null
   return (a ?? 0) + (b ?? 0)

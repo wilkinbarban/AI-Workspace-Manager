@@ -3,6 +3,7 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
+/** Alias compartidos entre main, preload y renderer para evitar rutas relativas fragiles. */
 const alias = {
   '@main': resolve('src/main'),
   '@core': resolve('src/core'),
@@ -11,6 +12,7 @@ const alias = {
   '@renderer': resolve('src/renderer')
 }
 
+/** Configuracion Electron Vite con bundles separados para main, preload y renderer. */
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],

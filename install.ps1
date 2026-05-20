@@ -1,14 +1,35 @@
-# AI Workspace Manager - Windows one-click installer
+# AI Workspace Manager - Instalador profesional para Windows
 #
-# This script installs AI Workspace Manager from the GitHub main branch.
-# It keeps the console clean and writes detailed command output to install.log.
+# Este script instala AI Workspace Manager desde la rama main de GitHub.
+# Mantiene la consola limpia para el usuario final y envia la salida detallada,
+# warnings y errores tecnicos a install.log para auditoria.
 #
-# Usage:
+# Uso remoto recomendado:
 #   powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/wilkinbarban/AI-Workspace-Manager/main/install.ps1 | iex"
 
+# Hace que cualquier error no controlado detenga el script inmediatamente.
 $ErrorActionPreference = "Stop"
+
+# Ruta inicial del log. Se usa un archivo temporal hasta que existe la carpeta
+# final del proyecto; despues se mueve a <proyecto>\install.log.
 $script:InstallLog = Join-Path $env:TEMP "AI-Workspace-Manager-install.log"
 
+<#
+.SYNOPSIS
+Inicializa el archivo de auditoria de la instalacion.
+
+.DESCRIPTION
+Crea la carpeta contenedora del log si no existe, actualiza la variable global
+$script:InstallLog y escribe el encabezado con fecha, usuario, equipo y version
+de PowerShell. Esta funcion debe ejecutarse antes de cualquier Write-Log.
+
+.PARAMETER LogPath
+Ruta absoluta del archivo donde se escribira el log inicial.
+
+.VARIABLES
+$script:InstallLog: ruta activa del log compartida por todas las funciones.
+$logParent: carpeta contenedora del archivo de log.
+#>
 function Initialize-InstallLog {
     param([Parameter(Mandatory = $true)][string]$LogPath)
 
@@ -30,6 +51,23 @@ function Initialize-InstallLog {
     ) | Set-Content -Path $script:InstallLog -Encoding UTF8
 }
 
+<#
+.SYNOPSIS
+Mueve el log temporal a la carpeta final del proyecto.
+
+.DESCRIPTION
+Cuando la descarga y extraccion ya produjeron la carpeta instalada, copia o crea
+install.log dentro de esa carpeta y actualiza $script:InstallLog para que todo el
+resto del flujo escriba en la ubicacion final auditable por el usuario.
+
+.PARAMETER TargetFolder
+Carpeta raiz donde quedo instalado AI Workspace Manager.
+
+.VARIABLES
+$finalLog: ruta definitiva <TargetFolder>\install.log.
+$currentLog: ruta del log activo antes del movimiento.
+$targetParent: carpeta contenedora del log final.
+#>
 function Move-InstallLog {
     param([Parameter(Mandatory = $true)][string]$TargetFolder)
 
@@ -56,6 +94,20 @@ function Move-InstallLog {
     return $finalLog
 }
 
+<#
+.SYNOPSIS
+Escribe una linea con timestamp en el log activo.
+
+.DESCRIPTION
+Centraliza la escritura del log para que todos los mensajes tengan el mismo
+formato temporal y usen la ruta actualizada en $script:InstallLog.
+
+.PARAMETER Message
+Mensaje tecnico o de auditoria que se agregara al log.
+
+.VARIABLES
+$timestamp: fecha y hora local usadas como prefijo de la entrada.
+#>
 function Write-Log {
     param([Parameter(Mandatory = $true)][string]$Message)
 
@@ -63,6 +115,18 @@ function Write-Log {
     "[$timestamp] $Message" | Add-Content -Path $script:InstallLog -Encoding UTF8
 }
 
+<#
+.SYNOPSIS
+Muestra una fase principal del instalador.
+
+.DESCRIPTION
+Imprime en consola un paso visible y registra el mismo evento en install.log.
+Se usa para acciones de alto nivel: validar entorno, descargar, instalar,
+preparar base de datos e iniciar la aplicacion.
+
+.PARAMETER Message
+Nombre corto de la fase en curso.
+#>
 function Write-ConsoleStep {
     param([Parameter(Mandatory = $true)][string]$Message)
 
@@ -71,6 +135,13 @@ function Write-ConsoleStep {
     Write-Log "STEP: $Message"
 }
 
+<#
+.SYNOPSIS
+Muestra y registra un resultado exitoso.
+
+.PARAMETER Message
+Mensaje de exito orientado al usuario.
+#>
 function Write-ConsoleSuccess {
     param([Parameter(Mandatory = $true)][string]$Message)
 
@@ -78,6 +149,13 @@ function Write-ConsoleSuccess {
     Write-Log "SUCCESS: $Message"
 }
 
+<#
+.SYNOPSIS
+Muestra y registra una advertencia recuperable.
+
+.PARAMETER Message
+Mensaje preventivo que no detiene necesariamente la instalacion.
+#>
 function Write-ConsoleWarning {
     param([Parameter(Mandatory = $true)][string]$Message)
 
@@ -85,6 +163,17 @@ function Write-ConsoleWarning {
     Write-Log "WARNING: $Message"
 }
 
+<#
+.SYNOPSIS
+Muestra un error final y la ruta del log.
+
+.DESCRIPTION
+Evita volcar detalles tecnicos extensos en consola. El usuario ve el mensaje
+resumido y la ruta exacta del install.log para auditoria.
+
+.PARAMETER Message
+Descripcion resumida del fallo.
+#>
 function Write-ConsoleError {
     param([Parameter(Mandatory = $true)][string]$Message)
 
@@ -94,6 +183,23 @@ function Write-ConsoleError {
     Write-Log "ERROR: $Message"
 }
 
+<#
+.SYNOPSIS
+Resuelve el ejecutable real de un comando.
+
+.DESCRIPTION
+En Windows, comandos como npm pueden resolverse primero a un shim .ps1. Para
+ejecutarlos desde System.Diagnostics.Process con salida redirigida, se prefiere
+el shim .cmd equivalente cuando existe.
+
+.PARAMETER FilePath
+Nombre de comando o ruta de ejecutable solicitada.
+
+.VARIABLES
+$command: resultado de Get-Command.
+$source: ruta detectada del comando.
+$cmdShim: ruta alternativa .cmd cuando el comando apunta a .ps1.
+#>
 function Resolve-CommandExecutable {
     param([Parameter(Mandatory = $true)][string]$FilePath)
 
@@ -110,6 +216,25 @@ function Resolve-CommandExecutable {
     return $source
 }
 
+<#
+.SYNOPSIS
+Muestra un indicador animado mientras un proceso externo sigue activo.
+
+.DESCRIPTION
+La salida real del proceso se redirige al log. Esta funcion mantiene la consola
+viva con un spinner para que el usuario sepa que el instalador sigue trabajando.
+
+.PARAMETER Process
+Proceso externo iniciado previamente.
+
+.PARAMETER Message
+Texto descriptivo mostrado junto al spinner.
+
+.VARIABLES
+$frames: secuencia de caracteres usada para animar el spinner.
+$index: contador usado para seleccionar el frame actual.
+$frame: caracter mostrado en la iteracion actual.
+#>
 function Wait-ProcessWithSpinner {
     param(
         [Parameter(Mandatory = $true)]
@@ -132,6 +257,18 @@ function Wait-ProcessWithSpinner {
     Write-Host -NoNewline "`r    - $Message... completado.          `n"
 }
 
+<#
+.SYNOPSIS
+Convierte argumentos en una cadena segura para ProcessStartInfo.
+
+.DESCRIPTION
+System.Diagnostics.ProcessStartInfo.Arguments recibe una cadena, no un arreglo.
+Esta funcion conserva argumentos con espacios o comillas envolviendolos y
+escapando comillas internas.
+
+.PARAMETER Arguments
+Lista ordenada de argumentos que recibira el proceso externo.
+#>
 function ConvertTo-ProcessArgumentString {
     param([string[]]$Arguments)
 
@@ -145,6 +282,37 @@ function ConvertTo-ProcessArgumentString {
         }) -join ' '
 }
 
+<#
+.SYNOPSIS
+Ejecuta un comando externo con salida completa en install.log.
+
+.DESCRIPTION
+Lanza npm, winget, Prisma, Electron u otros comandos mediante
+System.Diagnostics.Process para obtener un ExitCode fiable. La consola muestra
+solo un spinner; stdout y stderr se agregan al log. Si el comando falla, lanza
+un error resumido y conserva el detalle en install.log.
+
+.PARAMETER FilePath
+Comando o ejecutable a ejecutar.
+
+.PARAMETER Arguments
+Argumentos del comando externo.
+
+.PARAMETER FailureMessage
+Mensaje de error de alto nivel usado si el comando devuelve codigo distinto de 0.
+
+.PARAMETER Activity
+Texto del spinner mostrado mientras el proceso esta activo.
+
+.VARIABLES
+$displayCommand: representacion legible del comando para el log.
+$stdout / $stderr: salida capturada del proceso.
+$commandPath: ejecutable real resuelto por Resolve-CommandExecutable.
+$startInfo: configuracion de arranque del proceso.
+$process: instancia System.Diagnostics.Process en ejecucion.
+$stdoutTask / $stderrTask: lecturas asincronas de salida estandar y error.
+$exitCode: codigo final devuelto por el proceso.
+#>
 function Invoke-LoggedCommand {
     param(
         [Parameter(Mandatory = $true)]
@@ -219,6 +387,21 @@ function Invoke-LoggedCommand {
     }
 }
 
+<#
+.SYNOPSIS
+Refresca PATH dentro de la sesion actual de PowerShell.
+
+.DESCRIPTION
+Despues de instalar Node.js o npm, Windows puede actualizar PATH en el registro
+pero no en la sesion actual. Esta funcion reconstruye $env:Path desde los scopes
+Machine/User y agrega rutas comunes de Node.js si detecta node.exe.
+
+.VARIABLES
+$machinePath: PATH configurado a nivel de maquina.
+$userPath: PATH configurado para el usuario actual.
+$nodePaths: ubicaciones habituales de Node.js en Windows.
+$nodePath: ruta individual evaluada durante el recorrido.
+#>
 function Update-SessionPath {
     Write-Log "Refreshing PATH for current PowerShell session."
 
@@ -238,6 +421,18 @@ function Update-SessionPath {
     }
 }
 
+<#
+.SYNOPSIS
+Verifica que Node.js exista y cumpla la version minima.
+
+.DESCRIPTION
+El proyecto requiere Node.js 20 o superior. La funcion escribe la version
+detectada en el log y devuelve $true solo si el major version es suficiente.
+
+.VARIABLES
+$versionRaw: salida cruda de node -v, por ejemplo v26.1.0.
+$Matches: captura automatica de PowerShell usada para extraer el major version.
+#>
 function Test-NodeVersion {
     if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
         return $false
@@ -252,6 +447,18 @@ function Test-NodeVersion {
     return $false
 }
 
+<#
+.SYNOPSIS
+Verifica que npm exista y cumpla la version minima.
+
+.DESCRIPTION
+El instalador requiere npm 10 o superior. La funcion registra la version
+detectada y devuelve $true solo si el major version es suficiente.
+
+.VARIABLES
+$versionRaw: salida cruda de npm -v.
+$Matches: captura automatica de PowerShell usada para extraer el major version.
+#>
 function Test-NpmVersion {
     if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
         return $false
@@ -266,6 +473,15 @@ function Test-NpmVersion {
     return $false
 }
 
+<#
+.SYNOPSIS
+Instala Node.js automaticamente mediante winget.
+
+.DESCRIPTION
+Si Node.js no esta disponible o no cumple la version minima, usa winget para
+instalar OpenJS.NodeJS. Si winget no existe, detiene el flujo con instrucciones
+manuales. Despues refresca PATH y revalida Node.js.
+#>
 function Install-NodeWithWinget {
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
         throw "winget no esta disponible. Instala Node.js >= 20 desde https://nodejs.org y vuelve a ejecutar este instalador."
@@ -292,6 +508,20 @@ function Install-NodeWithWinget {
     }
 }
 
+<#
+.SYNOPSIS
+Calcula la carpeta destino de instalacion.
+
+.DESCRIPTION
+Evita instalar en Escritorio sincronizado con OneDrive, porque puede bloquear
+node_modules o binarios de Electron. Si detecta OneDrive, usa el perfil del
+usuario; si no, usa el Escritorio local.
+
+.VARIABLES
+$desktop: ruta del Escritorio del usuario.
+$userProfile: perfil base del usuario actual.
+$isOneDrive: indicador de Escritorio o entorno asociado a OneDrive.
+#>
 function Resolve-TargetFolder {
     $desktop = [System.Environment]::GetFolderPath("Desktop")
     $userProfile = $env:USERPROFILE
@@ -305,6 +535,21 @@ function Resolve-TargetFolder {
     return (Join-Path $desktop "AI-Workspace-Manager")
 }
 
+<#
+.SYNOPSIS
+Crea backup de una instalacion previa.
+
+.DESCRIPTION
+El instalador es seguro por defecto: nunca borra directamente una carpeta
+existente. Si TargetFolder ya existe, la mueve a una carpeta con timestamp.
+
+.PARAMETER TargetFolder
+Ruta de instalacion que podria contener una copia previa.
+
+.VARIABLES
+$timestamp: marca temporal usada para evitar colisiones de backups.
+$backupFolder: ruta final de la copia de respaldo.
+#>
 function Backup-ExistingInstall {
     param([Parameter(Mandatory = $true)][string]$TargetFolder)
 
@@ -328,6 +573,15 @@ function Backup-ExistingInstall {
     }
 }
 
+<#
+.SYNOPSIS
+Instala dependencias npm del proyecto.
+
+.DESCRIPTION
+Usa npm ci cuando existe package-lock.json para instalaciones reproducibles.
+Si el repo no trae lockfile, usa npm install y lo registra como fallback. Toda
+la salida de npm se guarda en install.log.
+#>
 function Install-ProjectDependencies {
     if (Test-Path "package-lock.json") {
         Write-ConsoleStep "Instalando dependencias"
@@ -348,6 +602,26 @@ function Install-ProjectDependencies {
         -Activity "Instalando dependencias npm"
 }
 
+<#
+.SYNOPSIS
+Valida que Electron este instalado de forma completa.
+
+.DESCRIPTION
+Comprueba los artefactos criticos que electron-vite necesita para arrancar:
+package.json, path.txt, ejecutable dentro de dist y archivo dist/version. Tambien
+verifica que la version instalada coincida con la version declarada del paquete.
+
+.VARIABLES
+$electronRoot: carpeta node_modules\electron.
+$packagePath: manifest del paquete Electron.
+$pathTxt: archivo que indica el ejecutable relativo.
+$versionFile: archivo con la version instalada en dist.
+$electronPackage: JSON parseado desde package.json.
+$expectedVersion: version esperada segun package.json.
+$relativeExecutable: valor leido desde path.txt.
+$electronExe: ruta final del ejecutable Electron.
+$installedVersion: version real encontrada en dist/version.
+#>
 function Test-ElectronInstall {
     $electronRoot = Join-Path (Get-Location) "node_modules\electron"
     $packagePath = Join-Path $electronRoot "package.json"
@@ -400,6 +674,18 @@ function Test-ElectronInstall {
     return $true
 }
 
+<#
+.SYNOPSIS
+Obtiene la version declarada del paquete Electron.
+
+.DESCRIPTION
+Lee node_modules\electron\package.json y devuelve su version. Se usa para
+construir el nombre del ZIP oficial cuando hay que reparar Electron manualmente.
+
+.VARIABLES
+$packagePath: ruta al package.json del paquete Electron.
+$electronPackage: objeto JSON del package.json.
+#>
 function Get-ElectronPackageVersion {
     $packagePath = Join-Path (Join-Path (Get-Location) "node_modules\electron") "package.json"
 
@@ -411,6 +697,14 @@ function Get-ElectronPackageVersion {
     return [string]$electronPackage.version
 }
 
+<#
+.SYNOPSIS
+Detecta la arquitectura de Electron que corresponde al equipo.
+
+.DESCRIPTION
+Devuelve arm64 cuando el sistema o npm lo indican; en los demas casos usa x64,
+que es la arquitectura Windows comun para Electron.
+#>
 function Get-ElectronArch {
     if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64" -or $env:npm_config_arch -eq "arm64") {
         return "arm64"
@@ -419,6 +713,33 @@ function Get-ElectronArch {
     return "x64"
 }
 
+<#
+.SYNOPSIS
+Repara Electron extrayendo el ZIP oficial.
+
+.DESCRIPTION
+Es el fallback manual cuando npm run electron:repair no deja una instalacion
+valida. Busca el ZIP en la cache local de Electron; si no existe, lo descarga
+desde GitHub Releases, limpia dist, extrae el binario, mueve electron.d.ts si
+aparece y recrea path.txt con electron.exe.
+
+.VARIABLES
+$electronRoot: carpeta raiz de Electron en node_modules.
+$distDir: carpeta donde debe quedar electron.exe.
+$version: version esperada de Electron.
+$arch: arquitectura objetivo, x64 o arm64.
+$zipName: nombre del artefacto oficial de Electron.
+$cacheRoot: cache local donde Electron suele guardar descargas.
+$zipFile: archivo ZIP seleccionado o descargado.
+$downloadDir: carpeta temporal propia del instalador para la descarga.
+$downloadPath: ruta final del ZIP descargado.
+$downloadUrl: URL de GitHub Releases para el artefacto.
+$client: WebClient usado para descarga con progreso visual.
+$task: descarga asincrona del ZIP.
+$frames / $index / $frame: variables del spinner visual.
+$job: trabajo PowerShell que ejecuta Expand-Archive.
+$typeFile: archivo electron.d.ts extraido dentro de dist.
+#>
 function Repair-ElectronFromArtifact {
     Write-ConsoleWarning "Aplicando reparacion manual de Electron."
 
@@ -509,6 +830,15 @@ function Repair-ElectronFromArtifact {
     Write-Log "Manual Electron repair completed."
 }
 
+<#
+.SYNOPSIS
+Valida y repara Electron antes de iniciar la app.
+
+.DESCRIPTION
+Primero ejecuta Test-ElectronInstall. Si falla, intenta la reparacion del script
+npm electron:repair. Si todavia falla, usa Repair-ElectronFromArtifact. Solo
+retorna con exito cuando Electron queda completamente validado.
+#>
 function Repair-ElectronInstall {
     Write-ConsoleStep "Verificando Electron"
 
@@ -535,6 +865,15 @@ function Repair-ElectronInstall {
     Write-ConsoleSuccess "Electron reparado correctamente."
 }
 
+<#
+.SYNOPSIS
+Arranca AI Workspace Manager en modo desarrollo.
+
+.DESCRIPTION
+Antes de ejecutar npm run dev vuelve a validar Electron. Esto evita el error
+Electron uninstall y garantiza que el usuario solo vea un fallo resumido con
+detalle disponible en install.log.
+#>
 function Start-Application {
     Write-ConsoleStep "Iniciando aplicacion"
 
@@ -556,8 +895,14 @@ Write-Host "   AI Workspace Manager - Instalador profesional  " -ForegroundColor
 Write-Host "==================================================" -ForegroundColor Cyan
 Write-Host "La salida detallada se guardara en install.log." -ForegroundColor Gray
 
+# Carpeta final de instalacion. Se resuelve despues de validar Node/npm porque
+# depende del Escritorio y del estado de OneDrive.
 $targetFolder = $null
+
+# ZIP temporal descargado desde GitHub. Se elimina siempre en finally.
 $tempZip = Join-Path $env:TEMP "AI-Workspace-Manager.zip"
+
+# Carpeta temporal propia del instalador para extraer el ZIP remoto.
 $tempExtractDir = Join-Path $env:TEMP "AI-Workspace-Manager-TempExt"
 
 try {
@@ -587,6 +932,8 @@ try {
         Write-ConsoleSuccess "npm detectado."
     }
 
+    # Carpeta donde se instalara el proyecto y carpeta esperada dentro del ZIP
+    # generado por GitHub para la rama main.
     $targetFolder = Resolve-TargetFolder
     $extractedFolder = Join-Path $tempExtractDir "AI-Workspace-Manager-main"
     Write-Log "Target folder: $targetFolder"
@@ -601,6 +948,8 @@ try {
         Remove-Item -LiteralPath $tempExtractDir -Recurse -Force
     }
 
+    # Fuerza TLS moderno para evitar fallos de descarga en entornos Windows con
+    # configuraciones antiguas de PowerShell/.NET.
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     if ([enum]::GetNames([Net.SecurityProtocolType]) -contains "Tls13") {
         [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls13
@@ -634,6 +983,7 @@ catch {
     Exit 1
 }
 finally {
+    # Limpieza acotada: solo se eliminan temporales creados por este instalador.
     if ($tempZip -and (Test-Path $tempZip)) {
         Remove-Item -LiteralPath $tempZip -Force
     }
@@ -644,10 +994,14 @@ finally {
 }
 
 try {
+    # A partir de este punto todos los comandos se ejecutan dentro de la carpeta
+    # instalada para que npm, Prisma y Electron usen los archivos correctos.
     Set-Location $targetFolder
 
     Write-ConsoleStep "Configurando proyecto"
 
+    # .env se crea solo si no existe. Esto preserva credenciales o rutas locales
+    # cuando el usuario reinstala sobre una copia previa restaurada.
     if (-not (Test-Path ".env")) {
         Copy-Item ".env.example" ".env" -Force
         Write-Log ".env created from .env.example"
@@ -656,6 +1010,8 @@ try {
         Write-Log ".env already exists and was preserved."
     }
 
+    # El instalador arranca la aplicacion en modo desarrollo porque este proyecto
+    # todavia no se distribuye como instalador empaquetado .exe.
     $env:NODE_ENV = "development"
 
     Install-ProjectDependencies

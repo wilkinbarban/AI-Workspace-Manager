@@ -1,6 +1,7 @@
 import { resolve } from 'node:path'
 import { defineConfig } from 'vitest/config'
 
+/** Configuracion de Vitest alineada con los alias TypeScript del proyecto. */
 export default defineConfig({
   test: {
     environment: 'node',

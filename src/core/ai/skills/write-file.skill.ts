@@ -3,11 +3,13 @@ import path from 'node:path'
 import { isPathInsideWorkspace } from '@core/utils/path-security'
 import type { Skill, SkillContext } from './skill.types'
 
+/** Entrada requerida para crear o sobrescribir un archivo de proyecto. */
 export interface WriteFileInput {
   filePath: string;
   content: string;
 }
 
+/** Skill segura de escritura usada por el agente para aplicar cambios auditables. */
 export const writeFileSkill: Skill<WriteFileInput, string> = {
   name: 'writeFile',
   description: 'Crea o sobrescribe un archivo con nuevo contenido. Úsalo para aplicar correcciones, refactorizaciones o crear nuevos archivos en el proyecto.',
@@ -27,27 +29,28 @@ export const writeFileSkill: Skill<WriteFileInput, string> = {
   },
   execute: async (input: WriteFileInput, context: SkillContext) => {
     try {
+      // La ruta absoluta se deriva de projectPath y luego se valida contra escapes.
       const targetPath = path.resolve(context.projectPath, input.filePath)
 
       if (!isPathInsideWorkspace(context.projectPath, targetPath)) {
         return `Error: Acceso denegado. No puedes escribir fuera de ${context.projectPath}`
       }
 
-      // Leer contenido anterior para el diff (si el archivo existe)
+      // Lee el contenido anterior para generar un diff visual si el archivo existe.
       let beforeContent: string | null = null
       try {
         beforeContent = await fs.readFile(targetPath, 'utf-8')
       } catch {
-        // Archivo nuevo — before = null
+        // Archivo nuevo: beforeContent queda en null para señalizar creacion.
       }
 
-      // Asegurar que el directorio exista
+      // Asegura que el directorio padre exista antes de escribir el archivo.
       const dir = path.dirname(targetPath)
       await fs.mkdir(dir, { recursive: true })
 
       await fs.writeFile(targetPath, input.content, 'utf-8')
 
-      // Notificar diff al runner a través del contexto
+      // Notifica el diff al runner para que el renderer pueda mostrarlo en tiempo real.
       if (context.onFileDiff) {
         context.onFileDiff({
           filePath: input.filePath,

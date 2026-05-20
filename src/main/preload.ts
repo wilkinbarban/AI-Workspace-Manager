@@ -3,6 +3,10 @@ import { IPC_CHANNELS } from '@shared/constants/ipc'
 import type { AppApi } from '@shared/types/api'
 import type { AgentEvent } from '@shared/types/workspace'
 
+/**
+ * API expuesta al renderer bajo contexto aislado.
+ * Cada metodo traduce una llamada tipada del frontend a un canal IPC del proceso main.
+ */
 const api: AppApi = {
   projects: {
     openProject: () => ipcRenderer.invoke(IPC_CHANNELS.projects.openProject),
@@ -40,4 +44,5 @@ const api: AppApi = {
   }
 }
 
+// Puente unico autorizado: el renderer no recibe acceso directo a Node ni Electron.
 contextBridge.exposeInMainWorld('api', api)

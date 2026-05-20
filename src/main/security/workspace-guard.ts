@@ -2,6 +2,7 @@ import path from 'node:path'
 import fs from 'fs-extra'
 import { AppError } from '@shared/errors/AppError'
 
+/** Valida y normaliza una ruta de workspace antes de persistirla o escanearla. */
 export async function assertDirectory(workspacePath: string): Promise<string> {
   const resolved = path.resolve(workspacePath)
   const stat = await fs.stat(resolved).catch(() => null)

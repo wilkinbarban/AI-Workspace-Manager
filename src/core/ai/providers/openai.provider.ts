@@ -8,75 +8,71 @@ import type {
 import { OpenAICompatibleProvider } from './base.provider'
 import { normalizeAIResponse } from '@core/ai/core/ai-response'
 
-// ─── Architecture note ───────────────────────────────────────────────────────
+// Nota de arquitectura
 //
-// OpenAI offers two main API surfaces:
+// OpenAI expone dos superficies principales de API:
 //
-//   1. Chat Completions  POST /v1/chat/completions   (stable, widely supported)
-//   2. Responses API     POST /v1/responses          (new agentic surface, March 2025)
+//   1. Chat Completions  POST /v1/chat/completions   (estable y ampliamente soportada)
+//   2. Responses API     POST /v1/responses          (superficie agentica nueva, marzo 2025)
 //
-// The Responses API is optimised for multi-step agentic loops with server-side
-// state management. THIS project follows a client-side stateless architecture
-// (full conversation history is passed on every request), which is exactly the
-// use-case Chat Completions was designed for.  Migrating to the Responses API
-// would require rewriting the shared AIProviderAdapter contract and all callers
-// without any practical benefit for our workflow, and it would break the other
-// provider adapters.
+// Responses API esta optimizada para bucles agenticos multi-paso con estado en
+// servidor. Este proyecto mantiene arquitectura sin estado del lado cliente:
+// el historial completo viaja en cada request. Ese caso encaja mejor con Chat
+// Completions y evita reescribir AIProviderAdapter y todos los adaptadores.
 //
-// Decision: use Chat Completions for all production models.  The Responses API
-// will be adopted if/when the project migrates to a server-side agent loop.
+// Decision: usar Chat Completions para modelos productivos. Responses API queda
+// como migracion futura si el agente pasa a tener estado en servidor.
 //
-// Reference: https://platform.openai.com/docs/api-reference/chat
+// Referencia: https://platform.openai.com/docs/api-reference/chat
 
-// ─── Official OpenAI model IDs (May 2025 – actively available) ──────────────
+// IDs oficiales de modelos OpenAI (mayo 2025, activos)
 //
-// Source: https://platform.openai.com/docs/models
+// Fuente: https://platform.openai.com/docs/models
 //
-// GPT-4.1 family – launched April 14 2025
-//   gpt-4.1            Flagship: complex reasoning, coding, 1M token context
-//   gpt-4.1-mini       Balanced speed/cost for production
-//   gpt-4.1-nano       Fastest / cheapest, simple extraction / classification
+// Familia GPT-4.1: lanzada el 14 de abril de 2025.
+//   gpt-4.1            Modelo principal: razonamiento, codigo y contexto 1M.
+//   gpt-4.1-mini       Balance entre velocidad y costo para produccion.
+//   gpt-4.1-nano       Opcion mas rapida y economica para extraccion/clasificacion.
 //
-// GPT-4o family – multimodal, vision-capable
-//   gpt-4o             Best multimodal (text + vision) performance
-//   gpt-4o-mini        Cost-efficient multimodal
+// Familia GPT-4o: multimodal con vision.
+//   gpt-4o             Mejor rendimiento multimodal texto + vision.
+//   gpt-4o-mini        Multimodal eficiente en costo.
 //
-// Reasoning (o-series)
-//   o3                 Most powerful reasoning model
-//   o4-mini            Compact high-performance reasoning (supports vision)
+// Razonamiento (serie o)
+//   o3                 Modelo de razonamiento mas potente.
+//   o4-mini            Razonamiento compacto de alto rendimiento con vision.
 //
-// NOTE: "gpt-5.4-pro", "gpt-5.4-flash", "gpt-5.3-codex" do NOT exist in the
-// API. They were placeholder identifiers added in a previous migration. They
-// are replaced below with real model IDs.
+// NOTA: "gpt-5.4-pro", "gpt-5.4-flash" y "gpt-5.3-codex" no existen en la API.
+// Fueron placeholders de una migracion previa y aqui se reemplazan por IDs reales.
 
-/** Official, verified OpenAI model IDs. */
+/** IDs oficiales y verificados de modelos OpenAI. */
 const OPENAI_MODELS = {
-  /** Flagship GPT-4.1 – complex reasoning, 1M token context, vision. */
+  /** GPT-4.1 principal: razonamiento complejo, contexto 1M y vision. */
   GPT_4_1: 'gpt-4.1',
-  /** Mid-tier GPT-4.1 – production balance of speed and quality. */
+  /** GPT-4.1 intermedio: balance productivo entre velocidad y calidad. */
   GPT_4_1_MINI: 'gpt-4.1-mini',
-  /** Fastest GPT-4.1 – high-volume classification and extraction. */
+  /** GPT-4.1 mas rapido: clasificacion y extraccion de alto volumen. */
   GPT_4_1_NANO: 'gpt-4.1-nano',
-  /** Most capable multimodal model – text + image inputs. */
+  /** Modelo multimodal fuerte para entradas de texto e imagen. */
   GPT_4O: 'gpt-4o',
-  /** Most powerful reasoning model – chain-of-thought, math, science. */
+  /** Modelo de razonamiento avanzado para logica, matematica y ciencia. */
   O3: 'o3',
-  /** Compact high-performance reasoning – vision, tools, low latency. */
+  /** Razonamiento compacto con vision, herramientas y baja latencia. */
   O4_MINI: 'o4-mini'
 } as const
 
-/** Reasoning models use `max_completion_tokens` instead of `max_tokens`. */
+/** Los modelos de razonamiento usan `max_completion_tokens` en vez de `max_tokens`. */
 const REASONING_MODELS: ReadonlySet<string> = new Set([
   OPENAI_MODELS.O3,
   OPENAI_MODELS.O4_MINI
 ])
 
-/** Default max output tokens for standard models. */
+/** Maximo de tokens de salida por defecto para modelos estandar. */
 const DEFAULT_MAX_TOKENS = 8192
 
-// ─── OpenAI-specific wire types ─────────────────────────────────────────────
+// Tipos nativos del protocolo OpenAI
 
-/** Single choice object inside a Chat Completions response. */
+/** Objeto choice individual dentro de una respuesta Chat Completions. */
 interface OpenAIChoice {
   index: number
   message: {
@@ -87,13 +83,13 @@ interface OpenAIChoice {
       type: 'function'
       function: { name: string; arguments: string }
     }>
-    /** Only present on reasoning models when `include` is set. */
+    /** Solo aparece en modelos de razonamiento cuando `include` lo solicita. */
     reasoning?: string
   }
   finish_reason: 'stop' | 'tool_calls' | 'length' | 'content_filter' | null
 }
 
-/** Full Chat Completions API response body. */
+/** Cuerpo completo de respuesta de la API Chat Completions. */
 interface OpenAIResponse {
   id: string
   object: 'chat.completion'
@@ -106,7 +102,7 @@ interface OpenAIResponse {
   }
 }
 
-/** Single streaming chunk (delta) returned by SSE. */
+/** Fragmento delta individual devuelto por SSE durante streaming. */
 interface OpenAIStreamChunk {
   id: string
   object: 'chat.completion.chunk'
@@ -131,9 +127,9 @@ interface OpenAIStreamChunk {
   }
 }
 
-// ─── Vision helpers ──────────────────────────────────────────────────────────
+// Helpers de vision
 
-/** Detect if a string is a data URL for an image (base64 or URL). */
+/** Detecta si un string representa una imagen por data URL o URL publica. */
 function isImageUrl(text: string): boolean {
   return (
     text.startsWith('data:image/') ||
@@ -142,10 +138,10 @@ function isImageUrl(text: string): boolean {
 }
 
 /**
- * Builds a multimodal content array when the message contains an image
- * reference embedded as `[IMAGE:<url>]<remaining text>`.
+ * Construye contenido multimodal cuando el mensaje trae una referencia
+ * embebida con el formato `[IMAGE:<url>]<texto restante>`.
  *
- * If the message is plain text, returns the string as-is (no overhead).
+ * Si el mensaje es texto plano, devuelve el string sin costo extra.
  */
 function buildOpenAIContent(
   raw: string | null
@@ -179,18 +175,18 @@ function buildOpenAIContent(
 }
 
 /**
- * OpenAIProvider
+ * Proveedor OpenAI.
  *
- * Implements the OpenAI Chat Completions API (`POST /v1/chat/completions`).
+ * Implementa la API OpenAI Chat Completions (`POST /v1/chat/completions`).
  *
- * Supported capabilities:
- *   - Standard text generation (all models)
- *   - Streaming via SSE (`stream: true`)
- *   - Tool / function calling (all models except o3 at low tier)
- *   - Vision / multimodal inputs (gpt-4.1, gpt-4o, o4-mini)
- *   - Reasoning models (o3, o4-mini) with `max_completion_tokens`
+ * Capacidades soportadas:
+ *   - Generacion estandar de texto.
+ *   - Streaming via SSE (`stream: true`).
+ *   - Tool/function calling.
+ *   - Entradas multimodales/vision.
+ *   - Modelos de razonamiento con `max_completion_tokens`.
  *
- * Auth: `Authorization: Bearer <apiKey>` (handled by base.provider headers()).
+ * Autenticacion: `Authorization: Bearer <apiKey>` en headers del provider base.
  */
 export class OpenAIProvider extends OpenAICompatibleProvider {
   constructor() {
@@ -217,7 +213,7 @@ export class OpenAIProvider extends OpenAICompatibleProvider {
     })
   }
 
-  // ─── Validation ───────────────────────────────────────────────────────────
+  // Validacion
 
   override validateConfig(config: AIProviderRuntimeConfig): { ok: boolean; message: string } {
     const base = super.validateConfig(config)
@@ -234,7 +230,7 @@ export class OpenAIProvider extends OpenAICompatibleProvider {
     return { ok: true, message: 'Configuración OpenAI válida.' }
   }
 
-  // ─── Chat (non-streaming) ─────────────────────────────────────────────────
+  // Chat sin streaming
 
   override async chat(
     config: AIProviderRuntimeConfig,
@@ -256,18 +252,17 @@ export class OpenAIProvider extends OpenAICompatibleProvider {
     return this.adaptResponse(response.data, request)
   }
 
-  // ─── Streaming (SSE) ──────────────────────────────────────────────────────
+  // Streaming SSE
 
   /**
-   * Streams tokens from `/v1/chat/completions` using `stream: true`.
+   * Transmite tokens desde `/v1/chat/completions` usando `stream: true`.
    *
-   * SSE format (Chat Completions):
+   * Formato SSE de Chat Completions:
    *   data: {"id":"...","choices":[{"delta":{"content":"Hello"},...}]}
    *   data: [DONE]
    *
-   * Yields each text token as it arrives. Assembled tool calls are NOT yielded
-   * incrementally — the full call is resolved after the stream closes (caller
-   * should use `chat()` directly when tool use is required).
+   * Emite cada token textual al llegar. Los tool calls ensamblados no se emiten
+   * incrementalmente; para herramientas el caller debe usar `chat()`.
    */
   async *streamChat(
     config: AIProviderRuntimeConfig,
@@ -310,21 +305,21 @@ export class OpenAIProvider extends OpenAICompatibleProvider {
           const text = delta?.content
           if (typeof text === 'string' && text) yield text
         } catch {
-          // Malformed SSE line – skip
+          // Linea SSE malformada: se ignora para no cortar el stream.
         }
       }
     }
   }
 
-  // ─── Private helpers ──────────────────────────────────────────────────────
+  // Helpers privados
 
   /**
-   * Builds the Chat Completions request body.
-   *
-   * Key differences for reasoning models (o3, o4-mini):
-   *   - `max_tokens` → `max_completion_tokens`
-   *   - `temperature` is not supported (omitted)
-   *   - `response_format: json_object` is not supported (omitted)
+   * Construye el body de Chat Completions.
+ *
+   * Diferencias clave para modelos de razonamiento:
+   *   - `max_tokens` pasa a `max_completion_tokens`.
+   *   - `temperature` no se envia.
+   *   - `response_format: json_object` no se envia.
    */
   private buildRequestBody(
     config: AIProviderRuntimeConfig,
@@ -354,10 +349,9 @@ export class OpenAIProvider extends OpenAICompatibleProvider {
   }
 
   /**
-   * Converts the internal AIChatMessage[] to OpenAI Chat Completions format.
-   *
-   * Vision: content is expanded to an array of typed blocks when the message
-   * contains `[IMAGE:<url>]` markers.
+   * Convierte AIChatMessage[] interno al formato OpenAI Chat Completions.
+ *
+   * Vision: el contenido se expande a bloques tipados si contiene `[IMAGE:<url>]`.
    */
   private buildMessages(request: AIChatRequest): unknown[] {
     return request.messages.map((msg) => {
@@ -385,8 +379,7 @@ export class OpenAIProvider extends OpenAICompatibleProvider {
   }
 
   /**
-   * Maps the OpenAI response to the internal AIChatResult shape.
-   * Reads exact token usage from the `usage` field (never estimated).
+   * Mapea la respuesta OpenAI a AIChatResult interno y usa tokens exactos de `usage`.
    */
   private adaptResponse(data: OpenAIResponse, request: AIChatRequest): AIChatResult {
     const choice = data.choices?.[0]?.message

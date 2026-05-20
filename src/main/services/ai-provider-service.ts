@@ -6,15 +6,20 @@ import type { AIAuthType, AIProviderDto, AIProviderManifest, AIProviderType, AIT
 import { SecretStore } from '@main/security/secret-store'
 import { randomUUID } from 'node:crypto'
 
+/** Convencion de cuenta usada por keytar para aislar secretos por proveedor. */
 const providerSecretAccount = (providerId: string): string => `ai-provider:${providerId}`
 
+/** Gestiona manifests, configuracion persistida y secretos de proveedores IA. */
 export class AIProviderService {
+  /** Almacen seguro del sistema para API keys; evita guardar secretos en SQLite. */
   private readonly secrets = new SecretStore()
 
+  /** Lista capacidades declaradas por todos los adaptadores IA registrados. */
   listManifests(): AIProviderManifest[] {
     return aiProviderRegistry.manifests()
   }
 
+  /** Lista proveedores configurados por el usuario, ordenados por prioridad operativa. */
   async list(): Promise<AIProviderDto[]> {
     const providers = await prisma.aIProvider.findMany({
       orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }]
@@ -23,6 +28,7 @@ export class AIProviderService {
     return providers.map(toAIProviderDto)
   }
 
+  /** Crea o actualiza un proveedor IA y sincroniza su API key con el almacen seguro. */
   async save(input: {
     id?: string
     name: string
@@ -77,6 +83,7 @@ export class AIProviderService {
     return toAIProviderDto(provider)
   }
 
+  /** Indica si la app puede operar con IA y cual proveedor debe usarse por defecto. */
   async getSetupState(): Promise<{ hasConfiguredProvider: boolean; defaultProviderId: string | null }> {
     const providers = await this.list()
     const defaultProvider = providers.find((provider) => provider.isDefault) ?? null
@@ -87,6 +94,7 @@ export class AIProviderService {
     }
   }
 
+  /** Recupera un proveedor persistido o uno virtual basado en variables de entorno. */
   async getProvider(providerId: string): Promise<AIProviderDto | null> {
     if (providerId.startsWith('env:')) {
       return this.getEnvProvider(providerId.replace('env:', '') as AIProviderType)
@@ -96,6 +104,7 @@ export class AIProviderService {
     return provider ? toAIProviderDto(provider) : null
   }
 
+  /** Resuelve el proveedor activo segun seleccion explicita, default o fallback .env. */
   async getActiveProvider(providerId?: string): Promise<AIProviderDto | null> {
     if (providerId) {
       return this.getProvider(providerId)
@@ -118,6 +127,7 @@ export class AIProviderService {
     return this.getEnvProvider('deepseek')
   }
 
+  /** Obtiene el secreto real desde keytar o desde .env para proveedores virtuales. */
   async getApiKey(provider: AIProviderDto): Promise<string | null> {
     if (provider.id.startsWith('env:')) {
       return process.env[envKeyForProvider(provider.type)] ?? null
@@ -126,6 +136,7 @@ export class AIProviderService {
     return this.secrets.getSecret(providerSecretAccount(provider.id))
   }
 
+  /** Valida una configuracion aun no guardada probando el adaptador correspondiente. */
   testConfig(input: {
     name: string
     type: AIProviderType
@@ -154,6 +165,7 @@ export class AIProviderService {
     return adapter.testConnection(runtimeConfig)
   }
 
+  /** Construye un proveedor temporal a partir de variables de entorno compatibles. */
   private getEnvProvider(type: AIProviderType): AIProviderDto | null {
     const manifest = aiProviderRegistry.get(type).manifest()
     const envKey = process.env[envKeyForProvider(type)]

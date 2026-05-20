@@ -1,8 +1,10 @@
 import type { AppApi } from '@shared/types/api'
 import type { ProjectDto, WorkspaceScanDto } from '@shared/types/workspace'
 
+/** Marca temporal estable para datos demo durante una sesion web sin Electron. */
 const now = new Date().toISOString()
 
+/** Proyecto simulado usado cuando el renderer se ejecuta en modo web sin preload. */
 const demoProject: ProjectDto = {
   id: 'demo-project',
   name: 'AI Workspace Manager',
@@ -14,6 +16,7 @@ const demoProject: ProjectDto = {
   updatedAt: now
 }
 
+/** Escaneo simulado para validar UI web sin acceder al sistema de archivos local. */
 const demoScan: WorkspaceScanDto = {
   id: 'demo-scan',
   projectId: demoProject.id,
@@ -62,6 +65,7 @@ const demoScan: WorkspaceScanDto = {
   }
 }
 
+/** Implementacion demo de AppApi para desarrollo web aislado de Electron. */
 const webDemoApi: AppApi = {
   projects: {
     openProject: async () => demoProject,
@@ -325,4 +329,5 @@ const webDemoApi: AppApi = {
   }
 }
 
+/** API activa: usa window.api en Electron y fallback demo en navegador. */
 export const appApi: AppApi = window.api ?? webDemoApi

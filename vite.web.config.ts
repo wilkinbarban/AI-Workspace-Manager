@@ -3,6 +3,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
+/** Build web del renderer para previsualizar UI sin proceso Electron. */
 export default defineConfig({
   root: resolve('src/renderer'),
   resolve: {

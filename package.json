@@ -9,7 +9,7 @@
     "dev": "electron-vite dev",
     "web:dev": "vite --config vite.web.config.ts",
     "web:build": "vite build --config vite.web.config.ts",
-    "build": "npm run typecheck && electron-vite build",
+    "build": "npm run typecheck && node --disable-warning=DEP0205 ./node_modules/electron-vite/bin/electron-vite.js build",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint . --max-warnings 0",

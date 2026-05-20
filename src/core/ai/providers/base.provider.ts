@@ -8,6 +8,7 @@ import type {
 import type { AIAuthType, AIProviderManifest, AIProviderType } from '@shared/types/workspace'
 import { extractUsageFromUnknown, normalizeAIResponse } from '@core/ai/core/ai-response'
 
+/** Opciones declarativas que convierten un proveedor OpenAI-compatible en adaptador completo. */
 export interface BaseProviderOptions {
   id: AIProviderType
   name: string
@@ -25,6 +26,7 @@ export interface BaseProviderOptions {
   status?: 'ready' | 'prepared' | 'experimental'
 }
 
+/** Adaptador base para APIs que implementan /chat/completions con formato OpenAI. */
 export class OpenAICompatibleProvider implements AIProviderAdapter {
   readonly id: AIProviderType
   readonly name: string
@@ -36,6 +38,7 @@ export class OpenAICompatibleProvider implements AIProviderAdapter {
   readonly supportsVision: boolean
   readonly supportsLocal: boolean
 
+  /** Las opciones se conservan protegidas para permitir validaciones especificas por proveedor. */
   constructor(protected readonly options: BaseProviderOptions) {
     this.id = options.id
     this.name = options.name
@@ -48,6 +51,7 @@ export class OpenAICompatibleProvider implements AIProviderAdapter {
     this.supportsLocal = options.supportsLocal ?? false
   }
 
+  /** Construye el manifest serializable que consume la pantalla de configuracion. */
   manifest(): AIProviderManifest {
     return {
       type: this.options.id,
@@ -67,6 +71,7 @@ export class OpenAICompatibleProvider implements AIProviderAdapter {
     }
   }
 
+  /** Valida requisitos comunes: API key, modelo y baseUrl cuando aplique. */
   validateConfig(config: AIProviderRuntimeConfig): { ok: boolean; message: string } {
     if (this.options.requiresApiKey && !config.apiKey) {
       return { ok: false, message: `${this.name} requiere API key.` }
@@ -83,6 +88,7 @@ export class OpenAICompatibleProvider implements AIProviderAdapter {
     return { ok: true, message: 'Configuracion valida.' }
   }
 
+  /** Ejecuta una consulta minima para comprobar credenciales, red y modelo. */
   async testConnection(config: AIProviderRuntimeConfig): Promise<{ ok: boolean; message: string }> {
     const validation = this.validateConfig(config)
     if (!validation.ok) return validation
@@ -99,6 +105,7 @@ export class OpenAICompatibleProvider implements AIProviderAdapter {
     }
   }
 
+  /** Ejecuta chat completions estandar y adapta contenido, tool calls y uso. */
   async chat(config: AIProviderRuntimeConfig, request: AIChatRequest): Promise<AIChatResult> {
     const response = await axios
       .post(
@@ -137,10 +144,12 @@ export class OpenAICompatibleProvider implements AIProviderAdapter {
     }
   }
 
+  /** Resuelve la URL base efectiva eliminando slash final para concatenar endpoints. */
   protected resolveBaseUrl(config: AIProviderRuntimeConfig): string {
     return (config.baseUrl || this.options.defaultBaseUrl || '').replace(/\/$/, '')
   }
 
+  /** Construye headers HTTP comunes con Bearer token cuando existe apiKey. */
   protected headers(config: AIProviderRuntimeConfig): Record<string, string> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
 
@@ -151,6 +160,7 @@ export class OpenAICompatibleProvider implements AIProviderAdapter {
     return headers
   }
 
+  /** Convierte errores Axios o genericos en mensajes accionables para el usuario. */
   protected formatProviderError(error: unknown): string {
     if (axios.isAxiosError(error)) {
       const status = error.response?.status
@@ -164,6 +174,7 @@ export class OpenAICompatibleProvider implements AIProviderAdapter {
   }
 }
 
+/** Extrae mensajes de error comunes desde respuestas JSON de proveedores IA. */
 function extractProviderErrorMessage(data: unknown): string | null {
   if (!data) return null
   if (typeof data === 'string') return data

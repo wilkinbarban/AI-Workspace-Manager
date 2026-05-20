@@ -5,10 +5,13 @@ import { app, BrowserWindow, Menu, shell } from 'electron'
 import { prisma, disconnectDatabase } from '@database/client'
 import { registerIpcHandlers } from '@main/ipc/register-ipc-handlers'
 
+/** Directorio compilado del proceso main; se usa para resolver preload y renderer. */
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+/** Referencia viva a la ventana principal para evitar garbage collection prematuro. */
 let mainWindow: BrowserWindow | null = null
 
+/** Construye la ventana principal de Electron con preload seguro e integracion IPC. */
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1320,
@@ -46,6 +49,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(async () => {
+  // La base de datos debe estar conectada antes de exponer acciones IPC al renderer.
   await prisma.$connect()
   registerIpcHandlers()
   Menu.setApplicationMenu(null)
@@ -65,5 +69,6 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  // No bloquea el cierre visual; deja que Prisma libere recursos en segundo plano.
   void disconnectDatabase()
 })

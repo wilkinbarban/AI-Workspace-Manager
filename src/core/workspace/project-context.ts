@@ -1,5 +1,6 @@
 import type { WorkspaceScanDto } from '@shared/types/workspace'
 
+/** Construye el contexto compacto que se entrega a la IA para analizar un proyecto. */
 export function buildProjectContext(scan: WorkspaceScanDto): string {
   return JSON.stringify(
     {

@@ -8,57 +8,53 @@ import type {
 import { OpenAICompatibleProvider } from './base.provider'
 import { normalizeAIResponse } from '@core/ai/core/ai-response'
 
-// ─── Architecture note ────────────────────────────────────────────────────────
+// Nota de arquitectura
 //
-// DeepSeek is LARGELY OpenAI-compatible, but has key differences:
+// DeepSeek es mayormente compatible con OpenAI, pero tiene diferencias clave:
 //
-//  ✅ Same endpoint:    POST /chat/completions
-//  ✅ Same auth:        Authorization: Bearer <apiKey>
-//  ✅ Same SSE format:  stream: true  →  data: {...}  /  data: [DONE]
-//  ✅ Same tool format: tools[] with function definitions
+//  - Mismo endpoint:    POST /chat/completions
+//  - Misma auth:        Authorization: Bearer <apiKey>
+//  - Mismo formato SSE: stream: true -> data: {...} / data: [DONE]
+//  - Mismo formato de tools: tools[] con definiciones function.
 //
-//  ⚠️ Unique:  `reasoning_content` field on assistant messages (thinking mode)
-//  ⚠️ Unique:  Thinking mode params (temperature/top_p have no effect when thinking)
-//  ⚠️ Unique:  Platform URL (platform.deepseek.com) ≠ API URL (api.deepseek.com)
+//  - Diferente: campo `reasoning_content` en mensajes assistant.
+//  - Diferente: parametros thinking no respetan temperature/top_p.
+//  - Diferente: platform.deepseek.com es consola; api.deepseek.com es API.
 //
-// Because the wire format is compatible, this provider extends OpenAICompatibleProvider
-// and ONLY overrides where DeepSeek diverges: streaming (to capture reasoning_content)
-// and error messages specific to DeepSeek issues (balance, model availability, etc.).
+// Como el wire format es compatible, este provider extiende OpenAICompatibleProvider
+// y sobrescribe solo streaming, reasoning_content y errores especificos de DeepSeek.
 
-// ─── Official DeepSeek model IDs ─────────────────────────────────────────────
+// IDs oficiales de modelos DeepSeek
 //
-// Source: https://api-docs.deepseek.com/api/list-models
+// Fuente: https://api-docs.deepseek.com/api/list-models
 //
-// deepseek-v4-flash   High efficiency, low latency, low cost.
-//                     Supports "thinking" (reasoning) mode.
-//                     Replaces legacy: deepseek-chat (non-thinking)
-//                                      deepseek-reasoner (thinking)
-//                     Deprecation of legacy aliases: July 24 2026.
+// deepseek-v4-flash   Alta eficiencia, baja latencia y bajo costo.
+//                     Soporta modo thinking/razonamiento.
+//                     Reemplaza aliases legacy deepseek-chat/deepseek-reasoner.
 //
-// deepseek-v4-pro     Highest capability: complex reasoning, coding, agents.
-//                     Optimised for quality over cost.
+// deepseek-v4-pro     Mayor capacidad para razonamiento, codigo y agentes.
 
-/** Official, verified DeepSeek model IDs. */
+/** IDs oficiales y verificados de modelos DeepSeek. */
 const DEEPSEEK_MODELS = {
-  /** High-efficiency model; supports thinking mode via `thinking` param. */
+  /** Modelo eficiente con soporte de thinking mode. */
   FLASH: 'deepseek-v4-flash',
-  /** Highest-capability model for agentic and complex reasoning tasks. */
+  /** Modelo de mayor capacidad para agentes y razonamiento complejo. */
   PRO: 'deepseek-v4-pro'
 } as const
 
-/** DeepSeek API base URL. Different from platform.deepseek.com (web console). */
+/** URL base de la API DeepSeek; distinta de la consola web platform.deepseek.com. */
 const DEEPSEEK_API_BASE = 'https://api.deepseek.com' as const
 
-// ─── DeepSeek-specific response shape ────────────────────────────────────────
+// Tipos especificos de respuesta DeepSeek
 
 /**
- * DeepSeek extends the standard OpenAI choice message with `reasoning_content`,
- * which holds the Chain-of-Thought produced when thinking mode is enabled.
+ * DeepSeek extiende el mensaje choice estandar de OpenAI con `reasoning_content`,
+ * usado para transportar razonamiento cuando thinking mode esta activo.
  */
 interface DeepSeekMessage {
   role: 'assistant'
   content: string | null
-  /** Chain-of-thought reasoning. Only present when thinking mode is on. */
+  /** Razonamiento interno; solo aparece cuando thinking mode esta activo. */
   reasoning_content?: string | null
   tool_calls?: Array<{
     id: string
@@ -89,7 +85,7 @@ interface DeepSeekStreamChunk {
     delta: {
       role?: string
       content?: string | null
-      /** Streamed thinking tokens (thinking mode). */
+      /** Tokens de razonamiento emitidos en streaming. */
       reasoning_content?: string | null
       tool_calls?: Array<{
         index: number
@@ -107,22 +103,22 @@ interface DeepSeekStreamChunk {
   }
 }
 
-// ─── Provider ─────────────────────────────────────────────────────────────────
+// Provider
 
 /**
- * DeepSeekAdapterProvider
+ * Proveedor DeepSeek.
  *
- * Implements the DeepSeek Chat Completions API via `POST /chat/completions`.
- * Wire format is OpenAI-compatible with DeepSeek-specific extensions.
+ * Implementa DeepSeek Chat Completions via `POST /chat/completions`.
+ * El wire format es compatible con OpenAI y agrega extensiones propias.
  *
- * Supported capabilities:
- *   - Standard text generation
- *   - SSE streaming (`stream: true`)
- *   - Tool / function calling (same schema as OpenAI)
- *   - Reasoning / thinking mode (`deepseek-v4-flash` only)
- *   - `reasoning_content` passthrough on multi-turn tool calls
+ * Capacidades:
+ *   - Generacion de texto.
+ *   - Streaming SSE.
+ *   - Tool/function calling.
+ *   - Thinking mode.
+ *   - Paso de `reasoning_content` en conversaciones multi-turn.
  *
- * Auth: `Authorization: Bearer <apiKey>` — handled by base.provider.headers().
+ * Autenticacion: `Authorization: Bearer <apiKey>` desde el provider base.
  */
 export class DeepSeekAdapterProvider extends OpenAICompatibleProvider {
   constructor() {
@@ -141,7 +137,7 @@ export class DeepSeekAdapterProvider extends OpenAICompatibleProvider {
     })
   }
 
-  // ─── Validation ───────────────────────────────────────────────────────────
+  // Validacion
 
   override validateConfig(config: AIProviderRuntimeConfig): { ok: boolean; message: string } {
     const base = super.validateConfig(config)
@@ -166,7 +162,7 @@ export class DeepSeekAdapterProvider extends OpenAICompatibleProvider {
     return { ok: true, message: 'Configuración DeepSeek válida.' }
   }
 
-  // ─── Chat (non-streaming) ─────────────────────────────────────────────────
+  // Chat sin streaming
 
   override async chat(
     config: AIProviderRuntimeConfig,
@@ -187,18 +183,17 @@ export class DeepSeekAdapterProvider extends OpenAICompatibleProvider {
     return this.adaptResponse(response.data, request)
   }
 
-  // ─── Streaming (SSE) ──────────────────────────────────────────────────────
+  // Streaming SSE
 
   /**
-   * Streams tokens from `/chat/completions` using DeepSeek SSE format.
+   * Transmite tokens desde `/chat/completions` con formato SSE de DeepSeek.
    *
-   * SSE is identical to OpenAI Chat Completions streaming:
+   * El SSE es igual al streaming de OpenAI Chat Completions:
    *   data: {"choices":[{"delta":{"content":"..."},...}]}
    *   data: [DONE]
    *
-   * Additionally, when thinking mode produces reasoning tokens, they arrive as
-   * `delta.reasoning_content`. We yield content tokens only here; reasoning
-   * content is available in the non-streaming `chat()` response.
+   * Cuando thinking mode produce tokens de razonamiento, llegan en
+   * `delta.reasoning_content`. Aqui se emiten solo tokens de respuesta final.
    */
   async *streamChat(
     config: AIProviderRuntimeConfig,
@@ -238,32 +233,28 @@ export class DeepSeekAdapterProvider extends OpenAICompatibleProvider {
           const parsed = JSON.parse(raw) as DeepSeekStreamChunk
           const delta = parsed.choices?.[0]?.delta
 
-          // Yield final answer tokens (not reasoning/thinking tokens)
+          // Emite tokens de respuesta final, no tokens de razonamiento.
           const text = delta?.content
           if (typeof text === 'string' && text) yield text
         } catch {
-          // Malformed SSE line — skip silently
+          // Linea SSE malformada: se ignora sin interrumpir el stream.
         }
       }
     }
   }
 
-  // ─── Private helpers ──────────────────────────────────────────────────────
+  // Helpers privados
 
   /**
-   * Builds the DeepSeek Chat Completions request body.
+   * Construye el body de DeepSeek Chat Completions.
    *
-   * Notes for thinking mode (`deepseek-v4-flash` only):
-   *  - Enable via `extra_body.thinking.type = "enabled"` (not yet exposed in
-   *    the generic interface — can be added to `request.tools` metadata or as a
-   *    separate option in future).
-   *  - When thinking mode is active, `temperature`, `top_p`, `frequency_penalty`
-   *    and `presence_penalty` have NO effect and should be omitted to avoid
-   *    confusion.
+   * Notas para thinking mode:
+   *  - Se habilita con `extra_body.thinking.type = "enabled"` en futuras capas.
+   *  - Cuando esta activo, temperature/top_p/frequency_penalty/presence_penalty
+   *    no tienen efecto y conviene omitirlos.
    *
-   * For multi-turn conversations that involved a tool call while thinking mode
-   * was on, the `reasoning_content` from the assistant turn MUST be included
-   * in the `messages` array (passed via `msg.reasoning_content` field).
+   * En conversaciones multi-turn con tools, `reasoning_content` del assistant
+   * debe reenviarse en `messages` mediante `msg.reasoning_content`.
    */
   private buildRequestBody(
     config: AIProviderRuntimeConfig,
@@ -278,7 +269,7 @@ export class DeepSeekAdapterProvider extends OpenAICompatibleProvider {
         return {
           role: 'assistant',
           content: msg.content ?? null,
-          // Pass through reasoning_content for multi-turn tool-call continuations
+          // Conserva reasoning_content para continuaciones multi-turn con tools.
           ...(msg.reasoning_content ? { reasoning_content: msg.reasoning_content } : {}),
           ...(msg.tool_calls?.length ? { tool_calls: msg.tool_calls } : {})
         }
@@ -302,9 +293,7 @@ export class DeepSeekAdapterProvider extends OpenAICompatibleProvider {
   }
 
   /**
-   * Maps a DeepSeek response to the internal AIChatResult.
-   * Preserves `reasoning_content` so callers can include it in multi-turn
-   * conversations that involved tool calls (required by DeepSeek's API).
+   * Mapea una respuesta DeepSeek a AIChatResult y conserva `reasoning_content`.
    */
   private adaptResponse(data: DeepSeekResponse, request: AIChatRequest): AIChatResult {
     const msg = data.choices?.[0]?.message

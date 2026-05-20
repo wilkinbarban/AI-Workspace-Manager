@@ -1,3 +1,4 @@
+/** Genera el prompt estricto para recibir analisis JSON y tareas accionables. */
 export function buildAnalyzeProjectPrompt(input: { userMessage: string; projectContext: string }): string {
   return [
     'Eres AI Workspace Manager, un administrador tecnico de proyectos de software.',

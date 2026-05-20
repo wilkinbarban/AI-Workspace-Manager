@@ -3,6 +3,7 @@ import tseslint from 'typescript-eslint'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 
+/** Reglas de lint del monorepo Electron/React con TypeScript estricto. */
 export default tseslint.config(
   { ignores: ['out', 'dist', 'node_modules', 'src/database/prisma/generated'] },
   js.configs.recommended,

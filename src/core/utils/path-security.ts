@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+/** Comprueba que una ruta objetivo no escape del workspace permitido. */
 export function isPathInsideWorkspace(workspacePath: string, targetPath: string): boolean {
   const workspace = path.resolve(workspacePath)
   const target = path.resolve(targetPath)

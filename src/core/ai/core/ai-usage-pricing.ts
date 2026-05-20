@@ -1,5 +1,6 @@
 import type { AIProviderType } from '@shared/types/workspace'
 
+/** Tarifas aproximadas por 1K tokens usadas cuando el proveedor no devuelve costo. */
 const PRICE_PER_1K_USD: Partial<Record<AIProviderType, { input: number; output: number }>> = {
   openai: { input: 0.00015, output: 0.0006 },
   deepseek: { input: 0.00014, output: 0.00028 },
@@ -8,6 +9,7 @@ const PRICE_PER_1K_USD: Partial<Record<AIProviderType, { input: number; output: 
   openrouter: { input: 0.001, output: 0.003 }
 }
 
+/** Estima costo USD con precios locales y devuelve null cuando faltan tokens o tarifa. */
 export function estimateCostUsd(input: {
   providerType: AIProviderType
   inputTokens: number | null

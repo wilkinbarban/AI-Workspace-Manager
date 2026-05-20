@@ -12,12 +12,18 @@ import { AIUsageService } from './ai-usage-service'
 import { TaskService } from './task-service'
 import { MemoryService } from './memory-service'
 
+/** Fachada de alto nivel para analisis IA, generacion de tareas y agente autonomo. */
 export class AIOrchestrator {
+  /** Servicio de resolucion y secretos de proveedores IA. */
   private readonly providerService = new AIProviderService()
+  /** Servicio de trazabilidad de tokens y costo estimado. */
   private readonly usageService = new AIUsageService()
+  /** Servicio de tareas generadas por IA o completadas por agente. */
   private readonly taskService = new TaskService()
+  /** Memoria persistente para guardar analisis y decisiones relevantes. */
   private readonly memoryService = new MemoryService()
 
+  /** Ejecuta un analisis IA sobre el ultimo scan y crea tareas accionables sin duplicar existentes. */
   async askProject(input: {
     projectId: string
     message: string
@@ -148,6 +154,7 @@ export class AIOrchestrator {
     }
   }
 
+  /** Ejecuta el agente con herramientas de archivos y emite eventos para monitor y diffs. */
   async runAgent(
     input: { projectId: string; prompt: string; providerId?: string },
     onEvent: (event: AgentEvent) => void

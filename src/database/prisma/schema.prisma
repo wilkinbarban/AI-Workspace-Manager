@@ -2,11 +2,13 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Base SQLite local definida por DATABASE_URL; el instalador crea .env antes de db:push.
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
+/// Proyecto importado por el usuario y raiz de todas las relaciones operativas.
 model Project {
   id          String          @id @default(cuid())
   name        String
@@ -24,6 +26,7 @@ model Project {
   commandLogs CommandLog[]
 }
 
+/// Snapshot persistido del analisis local hecho por WorkspaceScanner.
 model WorkspaceScan {
   id                  String   @id @default(cuid())
   projectId           String
@@ -39,6 +42,7 @@ model WorkspaceScan {
   @@index([projectId, createdAt])
 }
 
+/// Configuracion de un proveedor IA sin guardar secretos completos en SQLite.
 model AIProvider {
   id                 String       @id @default(cuid())
   name               String
@@ -60,6 +64,7 @@ model AIProvider {
   @@index([isDefault])
 }
 
+/// Registro historico de tokens, costo estimado y modelo usado por llamada IA.
 model AIUsageLog {
   id               String      @id @default(cuid())
   providerId       String?
@@ -81,6 +86,7 @@ model AIUsageLog {
   @@index([taskType, createdAt])
 }
 
+/// Tarea manual o generada por IA para seguimiento y ejecucion con agente.
 model Task {
   id          String   @id @default(cuid())
   projectId   String
@@ -96,6 +102,7 @@ model Task {
   @@index([projectId, status])
 }
 
+/// Memoria cronologica del proyecto: scans, analisis IA y tareas completadas.
 model MemoryEntry {
   id           String   @id @default(cuid())
   projectId    String
@@ -108,6 +115,7 @@ model MemoryEntry {
   @@index([projectId, createdAt])
 }
 
+/// Registro futuro de cambios de archivo con diff y backup opcional.
 model FileChange {
   id         String   @id @default(cuid())
   projectId  String?
@@ -119,6 +127,7 @@ model FileChange {
   createdAt  DateTime @default(now())
 }
 
+/// Registro futuro de comandos ejecutados sobre un proyecto.
 model CommandLog {
   id        String   @id @default(cuid())
   projectId String?
@@ -131,6 +140,7 @@ model CommandLog {
   createdAt DateTime @default(now())
 }
 
+/// Reporte IA persistido con resumen visible y payload JSON auditable.
 model Report {
   id          String   @id @default(cuid())
   projectId   String
@@ -143,6 +153,7 @@ model Report {
   @@index([projectId, createdAt])
 }
 
+/// Ajustes clave/valor globales de la aplicacion.
 model Settings {
   id        String   @id @default(cuid())
   key       String   @unique

@@ -17,39 +17,58 @@ import type {
 import { appApi } from '@renderer/lib/api'
 
 /**
- * Main hook for managing the workspace state in the renderer process.
- * It provides centralized access to projects, tasks, memory, AI providers,
- * and exposes methods to interact with the Electron backend via IPC.
+ * Hook principal de estado del renderer.
+ * Centraliza proyectos, tareas, memoria, proveedores IA, consumo y eventos del agente.
  *
- * @returns The workspace state and methods to interact with it.
+ * @returns Estado listo para componentes y acciones tipadas contra la API IPC.
  */
 export function useWorkspaceManager() {
+  /** Proyectos importados disponibles para seleccionar en el dashboard. */
   const [projects, setProjects] = useState<ProjectDto[]>([])
+  /** Identificador del proyecto activo seleccionado por el usuario. */
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  /** Ultimo escaneo local persistido para el proyecto activo. */
   const [latestScan, setLatestScan] = useState<WorkspaceScanDto | null>(null)
+  /** Tareas manuales o generadas por IA asociadas al proyecto activo. */
   const [tasks, setTasks] = useState<TaskDto[]>([])
+  /** Memoria cronologica del proyecto: scans, analisis IA y tareas completadas. */
   const [memory, setMemory] = useState<MemoryEntryDto[]>([])
+  /** Proveedores IA guardados por el usuario. */
   const [providers, setProviders] = useState<AIProviderDto[]>([])
+  /** Manifests tecnicos disponibles para construir el formulario de configuracion. */
   const [providerManifests, setProviderManifests] = useState<AIProviderManifest[]>([])
+  /** Resumen de consumo de tokens y costos estimados. */
   const [usageSummary, setUsageSummary] = useState<AIUsageSummaryDto | null>(null)
+  /** Bandera historica para detectar falta de configuracion inicial de IA. */
   const [setupRequired, setSetupRequired] = useState(false)
+  /** Ultima respuesta estructurada de IA mostrada en el dashboard. */
   const [aiAnswer, setAiAnswer] = useState<AIProjectAnswer | null>(null)
+  /** Estado global de trabajo para deshabilitar botones durante operaciones IPC. */
   const [isBusy, setIsBusy] = useState(false)
+  /** Error visible al usuario producido por la ultima operacion. */
   const [error, setError] = useState<string | null>(null)
+  /** Mensaje de exito o informacion producido por la ultima operacion. */
   const [notice, setNotice] = useState<string | null>(null)
 
+  /** Stream de eventos del agente usado por el monitor visual. */
   const [agentEvents, setAgentEvents] = useState<AgentEvent[]>([])
+  /** Indica si hay una ejecucion de agente en curso. */
   const [isAgentRunning, setIsAgentRunning] = useState(false)
+  /** Tarea que el agente esta intentando resolver actualmente. */
   const [activeTaskId, setActiveTaskId] = useState<string | undefined>()
+  /** Diffs de archivos generados por la skill writeFile durante la sesion. */
   const [fileDiffs, setFileDiffs] = useState<FileDiffEntry[]>([])
 
+  /** Proyecto completo derivado desde el id seleccionado. */
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
     [projects, selectedProjectId]
   )
 
+  /** Primer proveedor habilitado; controla si se muestra dashboard o configuracion inicial. */
   const activeProvider = useMemo(() => providers.find((provider) => provider.enabled) ?? null, [providers])
 
+  /** Recarga proyectos y selecciona automaticamente el primero cuando no hay seleccion activa. */
   const refreshProjects = useCallback(async () => {
     const nextProjects = await appApi.projects.getProjects()
     setProjects(nextProjects)
@@ -59,6 +78,7 @@ export function useWorkspaceManager() {
     }
   }, [selectedProjectId])
 
+  /** Recarga proveedores, manifests, setup y consumo en una sola tanda paralela. */
   const refreshProviders = useCallback(async () => {
     const [nextProviders, nextManifests, setupState, usage] = await Promise.all([
       appApi.settings.listAIProviders(),
@@ -72,6 +92,7 @@ export function useWorkspaceManager() {
     setUsageSummary(usage)
   }, [])
 
+  /** Recarga todos los datos dependientes del proyecto activo. */
   const refreshProjectData = useCallback(async (projectId: string) => {
     const [scan, nextTasks, nextMemory] = await Promise.all([
       appApi.workspace.getLatestScan(projectId),
@@ -99,6 +120,7 @@ export function useWorkspaceManager() {
     }
   }, [refreshProjectData, selectedProjectId])
 
+  /** Ejecuta operaciones IPC con manejo uniforme de loading, error y mensaje de exito. */
   const run = useCallback(async <T,>(operation: () => Promise<T>, successMessage?: string): Promise<T | null> => {
     setIsBusy(true)
     setError(null)
@@ -120,6 +142,7 @@ export function useWorkspaceManager() {
     }
   }, [])
 
+  /** Abre un proyecto con dialogo nativo y dispara el primer escaneo automatico. */
   const openProject = useCallback(async () => {
     const project = await run(() => appApi.projects.openProject(), 'Proyecto abierto. Analizando automáticamente...')
 
@@ -135,6 +158,7 @@ export function useWorkspaceManager() {
     }
   }, [refreshProjectData, refreshProjects, run])
 
+  /** Recalcula el analisis local del proyecto seleccionado. */
   const scanSelectedProject = useCallback(async () => {
     if (!selectedProjectId) {
       setError('Abre un proyecto antes de analizar.')
@@ -153,6 +177,7 @@ export function useWorkspaceManager() {
     }
   }, [refreshProjectData, refreshProjects, run, selectedProjectId])
 
+  /** Elimina proyectos no activos de la base local. */
   const cleanInactiveProjects = useCallback(async () => {
     if (!selectedProjectId) {
       setError('Abre un proyecto primero para considerarlo el activo.')
@@ -163,6 +188,7 @@ export function useWorkspaceManager() {
     await refreshProjects()
   }, [refreshProjects, run, selectedProjectId])
 
+  /** Ejecuta una consulta IA generica sobre el proyecto activo. */
   const askAI = useCallback(
     async (message: string) => {
       if (!selectedProjectId) {
@@ -185,6 +211,7 @@ export function useWorkspaceManager() {
     [refreshProjectData, run, selectedProjectId]
   )
 
+  /** Crea una tarea manual y refresca la lista visible. */
   const createTask = useCallback(
     async (input: { title: string; description?: string }) => {
       if (!selectedProjectId) return
@@ -195,19 +222,22 @@ export function useWorkspaceManager() {
     [refreshProjectData, run, selectedProjectId]
   )
 
+  /** Marca una tarea como completada y refresca memoria/avance. */
   const completeTask = useCallback(
     async (taskId: string) => {
       if (!selectedProjectId) return
       const task = await run(() => appApi.tasks.complete(taskId), 'Tarea completada.')
       if (task) {
         setTasks((current) => current.map((t) => (t.id === task.id ? task : t)))
+        await refreshProjectData(selectedProjectId)
       }
       return task
     },
-    [run, selectedProjectId]
+    [refreshProjectData, run, selectedProjectId]
   )
 
   useEffect(() => {
+    // Suscripcion unica al stream IPC de eventos del agente.
     const unsubscribe = appApi.ai.onAgentEvent((event) => {
       setAgentEvents((prev) => [...prev, event])
       if (event.type === 'file_diff' && event.payload) {
@@ -228,6 +258,7 @@ export function useWorkspaceManager() {
     return () => unsubscribe()
   }, [activeTaskId, completeTask])
 
+  /** Inicia el agente autonomo para resolver una tarea concreta. */
   const startAgent = useCallback(async (prompt: string, taskId: string) => {
     if (!selectedProjectId || isAgentRunning) return
     
@@ -245,6 +276,7 @@ export function useWorkspaceManager() {
     }
   }, [selectedProjectId, isAgentRunning, activeProvider])
 
+  /** Guarda proveedor IA desde settings o configuracion inicial y refresca manifests/uso. */
   const saveProvider = useCallback(
     async (input: {
       id?: string
@@ -267,6 +299,7 @@ export function useWorkspaceManager() {
     [refreshProviders, run]
   )
 
+  /** Prueba una configuracion IA sin persistirla necesariamente. */
   const testProviderConfig = useCallback(
     async (input: {
       name: string
@@ -287,6 +320,7 @@ export function useWorkspaceManager() {
     [run]
   )
 
+  /** Ejecuta una consulta IA especializada por tipo de tarea y proveedor opcional. */
   const askAIForTask = useCallback(
     async (message: string, taskType: AITaskType, providerId?: string) => {
       if (!selectedProjectId) {

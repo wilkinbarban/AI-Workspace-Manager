@@ -8,7 +8,7 @@ import { readFileSkill } from './read-file.skill'
 import { writeFileSkill } from './write-file.skill'
 import type { Skill } from './skill.types'
 
-// Registro central de todas las skills disponibles
+/** Registro central de skills disponibles para el agente autonomo. */
 export const allSkills: Skill[] = [
   listDirSkill,
   readFileSkill,

@@ -10,15 +10,15 @@ import type {
 import { OpenAICompatibleProvider } from './base.provider'
 import { normalizeAIResponse } from '@core/ai/core/ai-response'
 
-// ─── Anthropic-native message & content types ───────────────────────────────
+// Tipos nativos de mensajes y contenido Anthropic
 
-/** Text block returned inside an Anthropic response content array. */
+/** Bloque de texto devuelto dentro del arreglo content de Anthropic. */
 interface AnthropicTextBlock {
   type: 'text'
   text: string
 }
 
-/** Tool-use block returned inside an Anthropic response content array. */
+/** Bloque de llamada a herramienta devuelto por Anthropic. */
 interface AnthropicToolUseBlock {
   type: 'tool_use'
   id: string
@@ -28,7 +28,7 @@ interface AnthropicToolUseBlock {
 
 type AnthropicContentBlock = AnthropicTextBlock | AnthropicToolUseBlock
 
-/** Shape of a single Anthropic /messages response. */
+/** Forma de una respuesta individual de Anthropic /messages. */
 interface AnthropicMessagesResponse {
   id: string
   type: 'message'
@@ -45,7 +45,7 @@ interface AnthropicMessagesResponse {
   }
 }
 
-/** Shape of a tool definition accepted by the Anthropic API. */
+/** Definicion de herramienta aceptada por la API de Anthropic. */
 interface AnthropicTool {
   name: string
   description?: string
@@ -56,10 +56,10 @@ interface AnthropicTool {
   }
 }
 
-/** Anthropic message format (non-system). */
+/** Formato de mensaje Anthropic sin rol system. */
 interface AnthropicMessage {
   role: 'user' | 'assistant'
-  /** Can be a plain string OR an array of typed content blocks (vision). */
+  /** Puede ser texto plano o bloques tipados de contenido, incluyendo vision. */
   content:
     | string
     | Array<
@@ -70,40 +70,39 @@ interface AnthropicMessage {
       >
 }
 
-// ─── Official Anthropic model IDs (May 2026) ────────────────────────────────
+// IDs oficiales de modelos Anthropic (mayo 2026)
 
 /**
- * Official, versioned Anthropic model identifiers.
- * Using pinned IDs instead of aliases prevents unexpected behaviour on new releases.
+ * Identificadores oficiales y versionados de Anthropic.
+ * Usar IDs fijados evita cambios inesperados cuando Anthropic mueve alias.
  */
 const ANTHROPIC_MODELS = {
-  /** Most capable model – complex reasoning, advanced agentic coding. */
+  /** Modelo mas capaz para razonamiento complejo y coding agentico avanzado. */
   OPUS_4: 'claude-opus-4-7',
-  /** Balanced speed / intelligence for the majority of production use-cases. */
+  /** Balance de velocidad e inteligencia para la mayoria de casos productivos. */
   SONNET_4: 'claude-sonnet-4-6',
-  /** Fastest model – high-throughput and latency-sensitive tasks. */
+  /** Modelo mas rapido para alto volumen y baja latencia. */
   HAIKU_4: 'claude-haiku-4-5'
 } as const
 
-/** Required `anthropic-version` header value. */
+/** Valor obligatorio del header `anthropic-version`. */
 const ANTHROPIC_VERSION = '2023-06-01' as const
 
-/** Default maximum output tokens per request. */
+/** Maximo de tokens de salida por defecto por request. */
 const DEFAULT_MAX_TOKENS = 8192
 
 /**
- * AnthropicProvider
+ * Proveedor Anthropic.
  *
- * Implements the Anthropic Messages API natively. It does NOT delegate to the
- * OpenAI-compatible base logic for the `chat()` method because Anthropic's wire
- * format differs in:
- *  - Auth header (`x-api-key` instead of `Authorization: Bearer`)
- *  - Required `anthropic-version` header
- *  - `system` is a top-level field, NOT a message role
- *  - Tool definitions use `input_schema` (JSON Schema), not `parameters`
- *  - Tool results are `tool_result` content blocks inside user messages
- *  - Response content is an array of typed blocks (`text` | `tool_use`)
- *  - Streaming uses `text-delta` SSE events, not `delta.content`
+ * Implementa nativamente Anthropic Messages API. No delega el metodo `chat()`
+ * al provider OpenAI-compatible porque el protocolo difiere en:
+ *  - Header de autenticacion `x-api-key`.
+ *  - Header obligatorio `anthropic-version`.
+ *  - `system` como campo top-level, no como rol.
+ *  - Herramientas con `input_schema`.
+ *  - Resultados de herramientas como bloques `tool_result`.
+ *  - Respuesta como bloques `text` y `tool_use`.
+ *  - Streaming mediante eventos SSE `text-delta`.
  */
 export class AnthropicProvider extends OpenAICompatibleProvider {
   constructor() {
@@ -126,7 +125,7 @@ export class AnthropicProvider extends OpenAICompatibleProvider {
     })
   }
 
-  // ─── Validation ─────────────────────────────────────────────────────────
+  // Validacion
 
   override validateConfig(config: AIProviderRuntimeConfig): { ok: boolean; message: string } {
     const base = super.validateConfig(config)
@@ -143,7 +142,7 @@ export class AnthropicProvider extends OpenAICompatibleProvider {
     return { ok: true, message: 'Configuración Anthropic válida.' }
   }
 
-  // ─── Chat (non-streaming) ────────────────────────────────────────────────
+  // Chat sin streaming
 
   override async chat(
     config: AIProviderRuntimeConfig,
@@ -177,17 +176,16 @@ export class AnthropicProvider extends OpenAICompatibleProvider {
     return this.adaptResponse(response.data, request)
   }
 
-  // ─── Streaming (SSE) ─────────────────────────────────────────────────────
+  // Streaming SSE
 
   /**
-   * Implements `streamChat` using Anthropic's Server-Sent Events protocol.
-   *
-   * Event sequence per Anthropic docs:
-   *   message_start → content_block_start → content_block_delta* → content_block_stop → message_delta → message_stop
-   *
-   * We yield individual `text_delta` strings so the caller can display tokens
-   * progressively. Tool-use blocks are assembled but not yielded mid-stream;
-   * the caller receives the full tool call at `message_stop`.
+   * Implementa `streamChat` sobre el protocolo Server-Sent Events de Anthropic.
+ *
+   * Secuencia de eventos segun documentacion:
+   *   message_start -> content_block_start -> content_block_delta* -> content_block_stop -> message_delta -> message_stop
+ *
+   * Se emiten strings `text_delta` para mostrar tokens progresivamente.
+   * Los bloques tool-use se ensamblan y se resuelven al cierre del mensaje.
    */
   async *streamChat(
     config: AIProviderRuntimeConfig,
@@ -234,23 +232,23 @@ export class AnthropicProvider extends OpenAICompatibleProvider {
           const event = JSON.parse(rawData) as Record<string, unknown>
           const delta = event.delta as Record<string, unknown> | undefined
 
-          // Anthropic SSE: content_block_delta carries a `delta` with `type: text_delta`
+          // Anthropic SSE: content_block_delta transporta un delta de tipo text_delta.
           if (event.type === 'content_block_delta' && delta?.type === 'text_delta') {
             const text = delta.text as string
             if (text) yield text
           }
         } catch {
-          // Malformed SSE line – skip silently
+          // Linea SSE malformada: se ignora sin interrumpir el stream.
         }
       }
     }
   }
 
-  // ─── Private helpers ─────────────────────────────────────────────────────
+  // Helpers privados
 
   /**
-   * Builds the required headers for every Anthropic API request.
-   * Anthropic uses `x-api-key` instead of `Authorization: Bearer`.
+   * Construye headers obligatorios para cada request Anthropic.
+   * Anthropic usa `x-api-key` en vez de `Authorization: Bearer`.
    */
   private anthropicHeaders(config: AIProviderRuntimeConfig): Record<string, string> {
     return {
@@ -261,12 +259,12 @@ export class AnthropicProvider extends OpenAICompatibleProvider {
   }
 
   /**
-   * Splits the internal message list into:
-   *  - `system`: the concatenated text of all `system`-role messages
-   *  - `messages`: the remaining messages in Anthropic wire format
-   *
-   * Handles tool results correctly: they become `tool_result` content blocks
-   * inside a `user` role message (not a standalone `tool` role).
+   * Divide la lista interna de mensajes en:
+   *  - `system`: texto concatenado de mensajes system.
+   *  - `messages`: mensajes restantes en formato Anthropic.
+ *
+   * Los resultados de herramientas se transforman en bloques `tool_result`
+   * dentro de un mensaje user.
    */
   private splitMessages(internalMessages: AIChatMessage[]): {
     system: string | undefined
@@ -285,7 +283,7 @@ export class AnthropicProvider extends OpenAICompatibleProvider {
       if (msg.role === 'system') continue
 
       if (msg.role === 'tool') {
-        // Tool results must be wrapped in a `user` message with a `tool_result` content block.
+        // Los resultados de herramientas deben envolverse en un mensaje user con tool_result.
         messages.push({
           role: 'user',
           content: [
@@ -300,7 +298,7 @@ export class AnthropicProvider extends OpenAICompatibleProvider {
       }
 
       if (msg.role === 'assistant' && msg.tool_calls?.length) {
-        // Assistant tool calls become `tool_use` content blocks inside an assistant message.
+        // Las tool calls del assistant se convierten en bloques tool_use.
         messages.push({
           role: 'assistant',
           content: msg.tool_calls.map((tc) => ({
@@ -323,8 +321,8 @@ export class AnthropicProvider extends OpenAICompatibleProvider {
   }
 
   /**
-   * Translates the generic OpenAI-style tool definitions (used internally)
-   * into Anthropic's `input_schema` format.
+   * Traduce definiciones internas de herramientas estilo OpenAI al formato
+   * `input_schema` requerido por Anthropic.
    *
    * Internal tool format:
    * ```json
@@ -351,10 +349,9 @@ export class AnthropicProvider extends OpenAICompatibleProvider {
   }
 
   /**
-   * Converts an Anthropic /messages response into the internal AIChatResult.
-   *
-   * Content blocks of type `text` are concatenated; blocks of type `tool_use`
-   * are translated back into the internal OpenAI-compatible AIToolCall shape.
+   * Convierte una respuesta Anthropic /messages al AIChatResult interno.
+ *
+   * Los bloques `text` se concatenan; los `tool_use` se traducen a AIToolCall.
    */
   private adaptResponse(
     data: AnthropicMessagesResponse,
@@ -402,8 +399,8 @@ export class AnthropicProvider extends OpenAICompatibleProvider {
   }
 
   /**
-   * Safely parses a JSON string; returns an empty object on failure.
-   * Used when converting stored tool-call arguments back into objects.
+   * Parsea JSON de forma segura y devuelve objeto vacio si falla.
+   * Se usa al convertir argumentos de tool calls de string a objeto.
    */
   private parseJsonSafe(raw: string): Record<string, unknown> {
     try {

@@ -1,5 +1,6 @@
 import type { AITaskType } from '@shared/types/workspace'
 
+/** Selecciona el proveedor IA segun solicitud explicita, defaults por tarea y default global. */
 export function chooseProviderId(input: {
   requestedProviderId?: string
   taskType: AITaskType

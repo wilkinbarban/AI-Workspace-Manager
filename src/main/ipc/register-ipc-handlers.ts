@@ -16,8 +16,10 @@ import { ProjectService } from '@main/services/project-service'
 import { TaskService } from '@main/services/task-service'
 import { WorkspaceService } from '@main/services/workspace-service'
 
+/** Firma comun de un handler IPC validado por safeHandle. */
 type Handler<TInput, TOutput> = (input: TInput, event: IpcMainInvokeEvent) => Promise<TOutput> | TOutput
 
+/** Instancias singleton de servicios usadas por el proceso main durante la sesion. */
 const projectService = new ProjectService()
 const workspaceService = new WorkspaceService()
 const aiOrchestrator = new AIOrchestrator()
@@ -26,6 +28,7 @@ const memoryService = new MemoryService()
 const providerService = new AIProviderService()
 const usageService = new AIUsageService()
 
+/** Registra todos los endpoints IPC disponibles para preload/window.api. */
 export function registerIpcHandlers(): void {
   safeHandle(IPC_CHANNELS.projects.openProject, async (_input, event) => {
     return projectService.openProject(BrowserWindow.fromWebContents(event.sender))
@@ -103,6 +106,7 @@ export function registerIpcHandlers(): void {
   })
 }
 
+/** Envuelve ipcMain.handle con validacion centralizada y errores seguros para el renderer. */
 function safeHandle<TInput, TOutput>(channel: string, handler: Handler<TInput, TOutput>): void {
   ipcMain.handle(channel, async (event, input: TInput) => {
     try {

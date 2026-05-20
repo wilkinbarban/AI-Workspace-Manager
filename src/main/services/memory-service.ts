@@ -2,7 +2,9 @@ import { prisma, stringifyJson } from '@database/client'
 import { toMemoryEntryDto } from '@database/mappers'
 import type { MemoryEntryDto } from '@shared/types/workspace'
 
+/** Servicio de memoria cronologica del proyecto visible en el dashboard. */
 export class MemoryService {
+  /** Devuelve las ultimas entradas para mantener el renderer rapido y enfocado. */
   async list(projectId: string): Promise<MemoryEntryDto[]> {
     const entries = await prisma.memoryEntry.findMany({
       where: { projectId },
@@ -13,6 +15,7 @@ export class MemoryService {
     return entries.map(toMemoryEntryDto)
   }
 
+  /** Persiste un evento relevante del proyecto con metadata tecnica opcional. */
   async remember(input: {
     projectId: string
     type: string

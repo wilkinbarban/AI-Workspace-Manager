@@ -8,15 +8,25 @@ import { createRequire } from 'node:module'
 import { downloadArtifact } from '@electron/get'
 import extract from 'extract-zip'
 
+// createRequire permite leer package.json de electron desde un modulo ESM.
 const require = createRequire(import.meta.url)
+/** Ruta al package.json de electron instalado en node_modules. */
 const electronPackagePath = require.resolve('electron/package.json')
+/** Carpeta raiz del paquete electron donde viven install.js, path.txt y dist. */
 const electronDir = path.dirname(electronPackagePath)
+/** Metadata del paquete electron usada para conocer version esperada. */
 const electronPackage = require(electronPackagePath)
+/** Version de Electron que debe coincidir con dist/version. */
 const version = electronPackage.version
+/** Plataforma objetivo respetando overrides de npm/electron. */
 const platform = process.env.ELECTRON_INSTALL_PLATFORM || process.env.npm_config_platform || os.platform()
+/** Arquitectura objetivo respetando overrides de npm/electron. */
 const arch = process.env.ELECTRON_INSTALL_ARCH || process.env.npm_config_arch || process.arch
+/** Directorio donde Electron espera encontrar el binario extraido. */
 const distDir = path.join(electronDir, 'dist')
+/** Ruta relativa del ejecutable esperada por electron-vite. */
 const platformPath = getPlatformPath(platform)
+/** Archivo que electron-vite lee para localizar el ejecutable. */
 const pathTxt = path.join(electronDir, 'path.txt')
 
 main().catch((error) => {
@@ -24,33 +34,35 @@ main().catch((error) => {
   process.exit(1)
 })
 
+/** Flujo principal: valida Electron, intenta instalador oficial y reconstruye desde artifact si falla. */
 async function main() {
   if (isElectronInstallValid()) {
-    console.log(`Electron ${version} is already installed.`)
+    console.log(`Electron ${version} ya esta instalado correctamente.`)
     return
   }
 
-  console.log('Electron install is incomplete. Running official installer...')
+  console.log('La instalacion de Electron esta incompleta. Ejecutando instalador oficial...')
   const installResult = childProcess.spawnSync(process.execPath, [path.join(electronDir, 'install.js')], {
     stdio: 'inherit',
     env: process.env
   })
 
   if (installResult.status === 0 && isElectronInstallValid()) {
-    console.log('Electron repaired with official installer.')
+    console.log('Electron fue reparado con el instalador oficial.')
     return
   }
 
-  console.log('Official installer did not produce a complete Electron install. Rebuilding from artifact...')
+  console.log('El instalador oficial no dejo una instalacion completa. Reconstruyendo desde artifact...')
   await rebuildFromArtifact()
 
   if (!isElectronInstallValid()) {
-    throw new Error('Electron repair finished, but electron.exe/path.txt/version are still missing or invalid.')
+    throw new Error('La reparacion de Electron termino, pero electron.exe/path.txt/version siguen ausentes o invalidos.')
   }
 
-  console.log('Electron repaired successfully.')
+  console.log('Electron reparado correctamente.')
 }
 
+/** Comprueba version, path.txt y ejecutable para detectar instalaciones incompletas. */
 function isElectronInstallValid() {
   try {
     const expectedExecutable = path.join(distDir, platformPath)
@@ -63,6 +75,7 @@ function isElectronInstallValid() {
   }
 }
 
+/** Descarga el artifact oficial de Electron y reconstruye dist/path.txt manualmente. */
 async function rebuildFromArtifact() {
   fs.rmSync(distDir, { recursive: true, force: true })
   fs.mkdirSync(distDir, { recursive: true })
@@ -90,6 +103,7 @@ async function rebuildFromArtifact() {
   fs.writeFileSync(pathTxt, platformPath, 'utf8')
 }
 
+/** Extrae el zip de Electron; usa PowerShell en Windows para evitar problemas nativos. */
 async function extractElectronZip(zipPath, destination) {
   if (process.platform === 'win32') {
     const extractScript = path.join(os.tmpdir(), `ai-workspace-electron-extract-${process.pid}.ps1`)
@@ -122,7 +136,7 @@ async function extractElectronZip(zipPath, destination) {
     fs.rmSync(extractScript, { force: true })
 
     if (result.status !== 0) {
-      throw new Error(`PowerShell Expand-Archive failed with exit code ${result.status}.`)
+      throw new Error(`PowerShell Expand-Archive fallo con codigo de salida ${result.status}.`)
     }
 
     return
@@ -131,6 +145,7 @@ async function extractElectronZip(zipPath, destination) {
   await extract(zipPath, { dir: destination })
 }
 
+/** Devuelve el ejecutable esperado por plataforma segun convencion del paquete electron. */
 function getPlatformPath(currentPlatform) {
   switch (currentPlatform) {
     case 'mas':
@@ -143,6 +158,6 @@ function getPlatformPath(currentPlatform) {
     case 'win32':
       return 'electron.exe'
     default:
-      throw new Error(`Electron builds are not available on platform: ${currentPlatform}`)
+      throw new Error(`Los builds de Electron no estan disponibles para la plataforma: ${currentPlatform}`)
   }
 }

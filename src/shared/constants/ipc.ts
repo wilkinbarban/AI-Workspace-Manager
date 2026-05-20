@@ -1,3 +1,4 @@
+/** Mapa unico de canales IPC para evitar strings duplicados entre main y preload. */
 export const IPC_CHANNELS = {
   projects: {
     openProject: 'projects:openProject',

@@ -1,5 +1,6 @@
 import type { AIAnalysisResponse, AIAuthType, AIProviderManifest, AIProviderType, AITaskType } from '@shared/types/workspace'
 
+/** Llamada a herramienta emitida por un modelo compatible con function calling. */
 export interface AIToolCall {
   id: string
   type: 'function'
@@ -9,6 +10,7 @@ export interface AIToolCall {
   }
 }
 
+/** Definicion de herramienta que se entrega al proveedor IA en formato generico. */
 export interface AIToolDefinition {
   type: 'function'
   function: {
@@ -18,6 +20,7 @@ export interface AIToolDefinition {
   }
 }
 
+/** Mensaje normalizado de conversacion, independiente del formato nativo del proveedor. */
 export interface AIChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
   content: string | null
@@ -27,6 +30,7 @@ export interface AIChatMessage {
   reasoning_content?: string
 }
 
+/** Solicitud interna de chat usada por analisis, agente y pruebas de conexion. */
 export interface AIChatRequest {
   messages: AIChatMessage[]
   taskType: AITaskType
@@ -34,6 +38,7 @@ export interface AIChatRequest {
   tools?: AIToolDefinition[]
 }
 
+/** Reporte normalizado de tokens/costo devuelto o estimado por cada proveedor. */
 export interface AIUsageReport {
   inputTokens: number | null
   outputTokens: number | null
@@ -43,6 +48,7 @@ export interface AIUsageReport {
   isEstimate: boolean
 }
 
+/** Resultado normalizado de una llamada IA, incluyendo tool calls y analisis JSON. */
 export interface AIChatResult {
   content: string | null
   reasoningContent?: string
@@ -51,6 +57,7 @@ export interface AIChatResult {
   toolCalls?: AIToolCall[]
 }
 
+/** Configuracion en tiempo de ejecucion con secreto ya resuelto por el proceso main. */
 export interface AIProviderRuntimeConfig {
   id: string
   name: string

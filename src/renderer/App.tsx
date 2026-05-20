@@ -15,7 +15,9 @@ import type {
 } from '@shared/types/workspace'
 import { useWorkspaceManager } from './hooks/useWorkspaceManager'
 
+/** Componente raiz del renderer: decide entre configuracion inicial IA y dashboard operativo. */
 export default function App() {
+  /** Manager central con estado y acciones IPC del workspace. */
   const manager = useWorkspaceManager()
 
   return (
@@ -24,7 +26,7 @@ export default function App() {
         <div className="mx-auto flex w-full max-w-[1200px] flex-wrap items-center justify-between gap-4 px-6 py-3">
           <div className="min-w-56">
             <div className="brand-mark">AI Workspace Manager</div>
-            <div className="brand-subtitle">Project control center</div>
+            <div className="brand-subtitle">Centro de control de proyectos</div>
           </div>
           <div className="flex items-center gap-2">
             <button className="btn-secondary" type="button" onClick={manager.openProject} disabled={manager.isBusy}>
@@ -40,7 +42,7 @@ export default function App() {
       <main className="app-content flex-1 overflow-y-auto">
         <div className="content-frame">
 
-          {/* Gate: if no AI provider is configured, redirect to settings */}
+          {/* Si no hay proveedor IA activo, se muestra el flujo de configuracion inicial. */}
           {!manager.activeProvider ? (
             <AISetupGate
               manifests={manager.providerManifests}
@@ -68,6 +70,7 @@ export default function App() {
   )
 }
 
+/** Encabezado del proyecto activo y selector de proyectos importados. */
 function ProjectHeader(props: {
   project: ProjectDto | null
   projects: ProjectDto[]
@@ -102,8 +105,7 @@ function ProjectHeader(props: {
   )
 }
 
-// ─── AI Setup Gate ───────────────────────────────────────────────────────────
-// Shown instead of the dashboard when no AI provider is configured yet.
+/** Formulario guiado para conectar el primer proveedor IA antes de entrar al dashboard. */
 function AISetupGate(props: {
   manifests: AIProviderManifest[]
   isBusy: boolean
@@ -117,11 +119,17 @@ function AISetupGate(props: {
     model: string; apiKey?: string
   }) => void
 }) {
+  /** Proveedores priorizados para la experiencia inicial. */
   const recommended = props.manifests.filter(m => ['deepseek', 'openai', 'anthropic', 'gemini', 'openrouter'].includes(m.type))
+  /** Tipo de proveedor seleccionado en los chips visuales. */
   const [type, setType] = useState<AIProviderType>(recommended[0]?.type ?? 'deepseek')
+  /** Manifest tecnico correspondiente al proveedor seleccionado. */
   const manifest = props.manifests.find(m => m.type === type) ?? recommended[0]
+  /** API key escrita por el usuario; nunca se muestra fuera del input password. */
   const [apiKey, setApiKey] = useState('')
+  /** URL base editable para proveedores compatibles o despliegues personalizados. */
   const [baseUrl, setBaseUrl] = useState(manifest?.defaultBaseUrl ?? '')
+  /** Modelo seleccionado dentro de los modelos declarados por el manifest. */
   const [model, setModel] = useState(manifest?.defaultModel ?? '')
 
   useEffect(() => {
@@ -130,6 +138,7 @@ function AISetupGate(props: {
     setModel(prev => prev || manifest.defaultModel)
   }, [manifest])
 
+  /** Cambia proveedor y reinicia campos dependientes del manifest. */
   function choose(nextType: AIProviderType) {
     const next = props.manifests.find(m => m.type === nextType)
     setType(nextType)
@@ -143,7 +152,7 @@ function AISetupGate(props: {
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] animate-fadeIn">
       <div className="w-full max-w-lg">
-        {/* Icon + title */}
+        {/* Cabecera breve del asistente de configuracion. */}
         <div className="text-center mb-6">
           <div className="text-4xl mb-3">🤖</div>
           <h2 className="display-md">Configura tu primera IA</h2>
@@ -153,7 +162,7 @@ function AISetupGate(props: {
           </p>
         </div>
 
-        {/* Provider chips */}
+        {/* Chips de proveedores recomendados. */}
         <div className="flex flex-wrap gap-2 justify-center mb-5">
           {recommended.map(m => (
             <button
@@ -168,7 +177,7 @@ function AISetupGate(props: {
           ))}
         </div>
 
-        {/* Quick form */}
+        {/* Formulario minimo para guardar y validar credenciales. */}
         <form
           className="panel space-y-3"
           onSubmit={(e) => {
@@ -210,31 +219,36 @@ function AISetupGate(props: {
   )
 }
 
-// ─── Agent Monitor with drop zone ───────────────────────────────────────────
+/** Monitor del agente con zona de arrastre para ejecutar tareas existentes. */
 function AgentMonitor({ events, isRunning, onDropTask }: {
   events: AgentEvent[]
   isRunning: boolean
   onDropTask?: (task: TaskDto) => void
 }) {
+  /** Estado visual de drag and drop sobre el monitor. */
   const [isDragOver, setIsDragOver] = useState(false)
+  /** Referencia al panel de logs para hacer autoscroll. */
   const logRef = useRef<HTMLDivElement>(null)
 
-  // Auto-scroll to bottom on new events
+  // Mantiene visible el evento mas reciente del agente.
   useEffect(() => {
     if (logRef.current) {
       logRef.current.scrollTop = logRef.current.scrollHeight
     }
   }, [events])
 
+  /** Permite soltar tareas en el monitor y activa el estado visual. */
   function handleDragOver(e: React.DragEvent) {
     e.preventDefault()
     setIsDragOver(true)
   }
 
+  /** Restaura el estado visual al salir de la zona de drop. */
   function handleDragLeave() {
     setIsDragOver(false)
   }
 
+  /** Lee la tarea serializada desde dataTransfer y la entrega al callback del dashboard. */
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
     setIsDragOver(false)
@@ -272,7 +286,7 @@ function AgentMonitor({ events, isRunning, onDropTask }: {
         </span>
       </div>
 
-      {/* Drop overlay hint */}
+      {/* Overlay de confirmacion visual mientras el usuario arrastra una tarea. */}
       {isDragOver && (
         <div
           className="absolute inset-0 flex items-center justify-center pointer-events-none z-10"
@@ -331,7 +345,9 @@ function AgentMonitor({ events, isRunning, onDropTask }: {
 }
 
 
+/** Visualizador comparativo de cambios escritos por el agente en archivos del proyecto. */
 function DiffViewer({ diffs }: { diffs: import('@shared/types/workspace').FileDiffEntry[] }) {
+  /** Indice del diff seleccionado cuando hay varios archivos modificados. */
   const [selected, setSelected] = useState<number>(0)
 
   if (diffs.length === 0) {
@@ -358,7 +374,7 @@ function DiffViewer({ diffs }: { diffs: import('@shared/types/workspace').FileDi
   const beforeLines = (current.before ?? '').split('\n')
   const afterLines = current.after.split('\n')
 
-  // Compute unified diff inline
+  // Calcula diferencias linea a linea sin depender de una libreria externa.
   const diffLines: Array<{ type: 'add' | 'remove' | 'context'; content: string; lineNo?: number }> = []
   const maxLen = Math.max(beforeLines.length, afterLines.length)
   for (let i = 0; i < maxLen; i++) {
@@ -381,7 +397,7 @@ function DiffViewer({ diffs }: { diffs: import('@shared/types/workspace').FileDi
 
   return (
     <div className="ide-mockup-card animate-[fadeIn_0.5s_ease-out]">
-      {/* Toolbar */}
+      {/* Barra superior con archivo activo y contadores de cambios. */}
       <div className="ide-toolbar" style={{ backgroundColor: 'var(--color-ink)', borderBottom: '1px solid var(--color-hairline)' }}>
         <div className="flex items-center gap-2">
           <span className="window-dot window-dot-orange" />
@@ -395,7 +411,7 @@ function DiffViewer({ diffs }: { diffs: import('@shared/types/workspace').FileDi
         </div>
       </div>
 
-      {/* File tabs */}
+      {/* Tabs de archivos modificados por el agente. */}
       <div className="flex gap-0 overflow-x-auto border-b border-[var(--color-hairline)]" style={{ backgroundColor: 'var(--color-ink)' }}>
         {diffs.map((d, i) => (
           <button
@@ -415,7 +431,7 @@ function DiffViewer({ diffs }: { diffs: import('@shared/types/workspace').FileDi
         ))}
       </div>
 
-      {/* Split header */}
+      {/* Cabecera del diff en dos columnas: antes y despues. */}
       <div className="grid grid-cols-2 text-[11px] uppercase tracking-widest font-bold border-b border-[var(--color-hairline)]"
         style={{ backgroundColor: 'var(--color-ink)' }}>
         <div className="px-4 py-2 border-r border-[var(--color-hairline)]" style={{ color: '#F87171' }}>
@@ -424,7 +440,7 @@ function DiffViewer({ diffs }: { diffs: import('@shared/types/workspace').FileDi
         <div className="px-4 py-2" style={{ color: '#34D399' }}>Después →</div>
       </div>
 
-      {/* Side-by-side diff */}
+      {/* Diff lado a lado para lectura rapida de cambios. */}
       <div className="grid grid-cols-2 font-mono text-[12px] leading-5 max-h-[520px] overflow-y-auto"
         style={{ backgroundColor: 'var(--color-ink)' }}>
         {/* Before panel */}
@@ -474,7 +490,9 @@ function DiffViewer({ diffs }: { diffs: import('@shared/types/workspace').FileDi
   )
 }
 
+/** Contenedor reutilizable para plegar secciones y optimizar espacio vertical. */
 function CollapsibleSection({ title, defaultOpen = false, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
+  /** Estado local de expansion de la seccion. */
   const [isOpen, setIsOpen] = useState(defaultOpen)
   return (
     <div className="border border-[var(--color-hairline)] bg-[var(--color-surface-card)] rounded-[10px] overflow-hidden">
@@ -500,10 +518,13 @@ function CollapsibleSection({ title, defaultOpen = false, children }: { title: s
   )
 }
 
+/** Vista principal que compone salud, IA, agente, tareas, memoria y consumo. */
 function DashboardView({ manager }: { manager: ReturnType<typeof useWorkspaceManager> }) {
+  /** Paso activo del flujo guiado: salud, ejecucion IA o revision. */
   const [step, setStep] = useState(1)
 
   useEffect(() => {
+    /** Bloquea cierres accidentales mientras el agente esta ejecutando herramientas. */
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (manager.isAgentRunning) {
         e.preventDefault()
@@ -515,6 +536,7 @@ function DashboardView({ manager }: { manager: ReturnType<typeof useWorkspaceMan
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [manager.isAgentRunning])
 
+  /** Proyecto y scan activos derivados del hook central. */
   const project = manager.selectedProject
   const scan = manager.latestScan
 
@@ -526,6 +548,7 @@ function DashboardView({ manager }: { manager: ReturnType<typeof useWorkspaceMan
     return <EmptyState title={project.name} action="Ejecuta el scanner para generar el dashboard." />
   }
 
+  /** Renderiza el contenido de cada paso sin montar secciones que no se estan usando. */
   const renderStepContent = () => {
     switch (step) {
       case 1:
@@ -580,6 +603,10 @@ function DashboardView({ manager }: { manager: ReturnType<typeof useWorkspaceMan
              </div>
 
              <DiffViewer diffs={manager.fileDiffs} />
+
+             <CollapsibleSection title="Avance completado" defaultOpen={false}>
+               <CompletedTasksView tasks={manager.tasks} />
+             </CollapsibleSection>
 
              <div className="grid gap-8 lg:grid-cols-2">
                <CollapsibleSection title="Memoria del Proyecto" defaultOpen={false}>
@@ -642,17 +669,24 @@ function DashboardView({ manager }: { manager: ReturnType<typeof useWorkspaceMan
   )
 }
 
+/** Panel grafico con health score, factores de arquitectura y acciones de escaneo. */
 function ProjectHealthDashboard(props: {
   project: ProjectDto
   scan: WorkspaceScanDto
   tasks: TaskDto[]
 }) {
+  /** Datos principales entregados por el dashboard para calcular metricas visuales. */
   const { scan, project, tasks } = props
+  /** Health score desglosado por dimensiones tecnicas del workspace. */
   const h = scan.health
+  /** Tareas pendientes usadas para resumir backlog operativo. */
   const pending = tasks.filter(t => t.status === 'pending').length
+  /** Tareas completadas usadas para calcular progreso real. */
   const completed = tasks.filter(t => t.status === 'completed').length
+  /** Total de tareas conocidas del proyecto. */
   const total = tasks.length
 
+  /** Definicion visual de cada dimension del health score. */
   const metrics: Array<{ key: keyof typeof h; label: string; color: string }> = [
     { key: 'architecture',    label: 'Arquitectura',    color: '#818CF8' },
     { key: 'documentation',   label: 'Documentación',   color: '#34D399' },
@@ -665,14 +699,16 @@ function ProjectHealthDashboard(props: {
     { key: 'maintainability', label: 'Mantenibilidad',  color: '#4ADE80' },
   ]
 
+  /** Color semantico del anillo de salud segun puntuacion global. */
   const scoreColor = h.score >= 75 ? '#4ADE80' : h.score >= 45 ? '#FBBF24' : '#F87171'
+  /** Etiqueta textual del estado global del proyecto. */
   const scoreLabel = h.score >= 75 ? 'Saludable' : h.score >= 45 ? 'Mejorable' : 'Crítico'
 
   return (
     <div className="space-y-6 animate-[fadeIn_0.5s_ease-out]">
-      {/* Header row */}
+      {/* Fila superior con salud, stack y avance de tareas. */}
       <div className="grid gap-4 lg:grid-cols-[1fr_1fr_1fr]">
-        {/* Health score */}
+        {/* Indicador principal de salud del proyecto. */}
         <div className="feature-card flex items-center gap-5">
           <div className="relative flex-shrink-0" style={{ width: 80, height: 80 }}>
             <svg width="80" height="80" viewBox="0 0 80 80">
@@ -698,7 +734,7 @@ function ProjectHealthDashboard(props: {
           </div>
         </div>
 
-        {/* Language & stack */}
+        {/* Lenguaje, framework y señales de infraestructura detectadas. */}
         <div className="feature-card flex flex-col justify-center gap-3">
           <div className="section-kicker mb-1">Stack Tecnológico</div>
           <div className="flex items-center gap-3">
@@ -718,7 +754,7 @@ function ProjectHealthDashboard(props: {
           </div>
         </div>
 
-        {/* Task progress */}
+        {/* Progreso de tareas asociado al proyecto. */}
         <div className="feature-card flex flex-col justify-center gap-3">
           <div className="section-kicker mb-1">Progreso de Tareas</div>
           {total === 0 ? (
@@ -751,7 +787,7 @@ function ProjectHealthDashboard(props: {
         </div>
       </div>
 
-      {/* Live metrics grid */}
+      {/* Cuadricula de metricas tecnicas calculadas por el scanner. */}
       <div>
         <div className="section-kicker mb-4">Métricas de Calidad — en vivo</div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -785,15 +821,19 @@ function ProjectHealthDashboard(props: {
   )
 }
 
+/** Formulario de generacion IA por tipo de tarea y proveedor opcional. */
 function AIGenerator(props: {
   scan: WorkspaceScanDto | null
   isBusy: boolean
   providers: AIProviderDto[]
   onAsk: (message: string, taskType: AITaskType, providerId?: string) => void
 }) {
+  /** Tipo de trabajo IA que impacta prompt y seleccion de proveedor por defecto. */
   const [taskType, setTaskType] = useState<AITaskType>('analysis')
+  /** Proveedor especifico seleccionado por el usuario; vacio usa router automatico. */
   const [providerId, setProviderId] = useState('')
 
+  /** Prompts predefinidos por tipo de tarea para mantener consistencia operativa. */
   const taskTypeMessages: Record<string, string> = {
     'analysis': 'Analiza el proyecto y genera tareas de documentación, licencia y configuración básica. Revisa si ya existen para no duplicar.',
     'refactor': 'Analiza el proyecto y genera tareas para refactorizar, hacer el código modular, revisar integraciones (GitHub/Docker) y limpiar dependencias.',
@@ -852,6 +892,7 @@ function AIGenerator(props: {
   )
 }
 
+/** Resumen de la ultima respuesta IA y datos de consumo asociados. */
 function AIResponse({ answer }: { answer: AIProjectAnswer }) {
   return (
     <div className="bg-[var(--color-surface)] border border-[var(--color-hairline)] rounded-[12px] overflow-hidden mt-6 animate-[fadeIn_0.5s_ease-out]">
@@ -871,6 +912,7 @@ function AIResponse({ answer }: { answer: AIProjectAnswer }) {
   )
 }
 
+/** Lista de tareas pendientes con acordeon, drag and drop y accion de agente. */
 function TasksView(props: {
   tasks: TaskDto[]
   isBusy: boolean
@@ -878,10 +920,14 @@ function TasksView(props: {
   onCreateTask: (input: { title: string; description?: string }) => void
   onStartAgent?: (prompt: string, taskId: string) => void
 }) {
+  /** Titulo de la tarea manual en creacion. */
   const [title, setTitle] = useState('')
+  /** Descripcion opcional de la tarea manual en creacion. */
   const [description, setDescription] = useState('')
+  /** Tarea expandida actualmente dentro del acordeon. */
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
 
+  /** Crea una tarea manual y reinicia el formulario. */
   function submit(event: FormEvent) {
     event.preventDefault()
     void props.onCreateTask({ title, description })
@@ -889,10 +935,12 @@ function TasksView(props: {
     setDescription('')
   }
 
+  /** Alterna la expansion de detalles de una tarea. */
   function toggleTask(id: string) {
     setOpenTaskId(prev => prev === id ? null : id)
   }
 
+  /** Devuelve color semantico para el riesgo de la tarea. */
   const riskColor = (r: string | null) => {
     if (r === 'high') return '#F87171'
     if (r === 'medium') return '#FBBF24'
@@ -901,7 +949,7 @@ function TasksView(props: {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Task list */}
+      {/* Lista principal de tareas accionables. */}
       <section className="panel" style={{ padding: '12px' }}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="section-title">Tareas pendientes</h2>
@@ -932,7 +980,7 @@ function TasksView(props: {
                     cursor: props.activeTaskId ? 'default' : 'grab'
                   }}
                 >
-                  {/* Header row — always visible */}
+                  {/* Cabecera siempre visible de cada tarea. */}
                   <button
                     type="button"
                     onClick={() => toggleTask(task.id)}
@@ -970,7 +1018,7 @@ function TasksView(props: {
                     </div>
                   </button>
 
-                  {/* Collapsible content */}
+                  {/* Contenido desplegable con descripcion y accion del agente. */}
                   {isOpen && (
                     <div
                       className="px-3 pb-3 border-t border-[var(--color-hairline)]"
@@ -1010,7 +1058,7 @@ function TasksView(props: {
         )}
       </section>
 
-      {/* Add manual task — collapsible */}
+      {/* Creacion manual de tareas, plegada para no ocupar espacio permanente. */}
       <CollapsibleSection title="Añadir tarea manual" defaultOpen={false}>
         <form className="space-y-2" onSubmit={submit}>
           <input value={title} onChange={(e) => setTitle(e.target.value)} className="input" placeholder="Título" disabled={props.isBusy} />
@@ -1023,45 +1071,312 @@ function TasksView(props: {
 }
 
 
-function MemoryView({ memory }: { memory: MemoryEntryDto[] }) {
+/** Visualiza avance completado con anillo, metricas y lista historica de cierres. */
+function CompletedTasksView({ tasks }: { tasks: TaskDto[] }) {
+  /** Tareas cerradas; son la fuente del grafico y del historial de avance. */
+  const completedTasks = tasks.filter(task => task.status === 'completed')
+  /** Tareas completadas ordenadas por actividad reciente. */
+  const sortedTasks = [...completedTasks].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+  /** Total de tareas visibles del proyecto. */
+  const totalTasks = tasks.length
+  /** Backlog no completado. */
+  const pendingTasks = tasks.filter(task => task.status !== 'completed').length
+  /** Porcentaje de avance usado por el anillo SVG y barra de progreso. */
+  const completionRate = totalTasks > 0 ? Math.round((completedTasks.length / totalTasks) * 100) : 0
+  /** Conteo de tareas completadas que nacieron de entrada manual. */
+  const manualCompleted = completedTasks.filter(task => task.source === 'manual').length
+  /** Conteo de tareas completadas que nacieron de sugerencias IA. */
+  const aiCompleted = completedTasks.filter(task => task.source === 'ai').length
+  /** Ultima tarea completada para destacar actividad reciente. */
+  const latestCompleted = sortedTasks[0]
+
   return (
-    <section className="panel">
-      <h2 className="section-title">Memoria del proyecto</h2>
-      <div className="mt-4 space-y-3">
-        {memory.length ? (
-          memory.map((entry) => (
+    <div className="space-y-5">
+      <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <div className="feature-card flex items-center gap-4">
+          <div className="relative flex-shrink-0" style={{ width: 86, height: 86 }}>
+            <svg width="86" height="86" viewBox="0 0 86 86">
+              <circle cx="43" cy="43" r="36" fill="none" stroke="var(--color-hairline-strong)" strokeWidth="8" />
+              <circle
+                cx="43" cy="43" r="36" fill="none"
+                stroke={completionRate >= 80 ? '#34D399' : completionRate >= 40 ? '#FBBF24' : '#F87171'}
+                strokeWidth="8"
+                strokeLinecap="round"
+                strokeDasharray={`${2 * Math.PI * 36}`}
+                strokeDashoffset={`${2 * Math.PI * 36 * (1 - completionRate / 100)}`}
+                transform="rotate(-90 43 43)"
+                style={{ transition: 'stroke-dashoffset 0.9s ease-out' }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="font-bold text-[18px]">{completionRate}%</span>
+            </div>
+          </div>
+          <div>
+            <div className="section-kicker">avance</div>
+            <div className="display-sm">{completedTasks.length}/{totalTasks}</div>
+            <div className="section-kicker mt-1 text-[11px]">tareas cerradas</div>
+          </div>
+        </div>
+
+        <div className="feature-card flex flex-col justify-center gap-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <ProgressFact label="Completadas" value={String(completedTasks.length)} tone="#34D399" />
+            <ProgressFact label="Pendientes" value={String(pendingTasks)} tone="#FBBF24" />
+            <ProgressFact label="Última actividad" value={latestCompleted ? formatDate(latestCompleted.updatedAt) : 'sin cierre'} tone="#60A5FA" />
+          </div>
+          <div>
+            <div className="mb-2 flex items-center justify-between text-[12px] text-[var(--color-muted)]">
+              <span>Progreso operativo del proyecto</span>
+              <span>{completionRate}%</span>
+            </div>
+            <div className="metric-track">
+              <div
+                className="metric-fill"
+                style={{
+                  width: `${completionRate}%`,
+                  background: 'linear-gradient(90deg, #34D399, #60A5FA)',
+                  transition: 'width 0.9s ease-out'
+                }}
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <span className="badge">manuales {manualCompleted}</span>
+            <span className="badge">IA {aiCompleted}</span>
+            <span className="badge">historial persistente</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {sortedTasks.length ? (
+          sortedTasks.map((task) => (
+            <div key={task.id} className="memory-row p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="badge">completada</span>
+                  <span className="badge">{task.source}</span>
+                  {task.riskLevel && <span className="badge">riesgo {task.riskLevel}</span>}
+                </div>
+                <span className="section-kicker">{formatDate(task.updatedAt)}</span>
+              </div>
+              <h3 className="mt-3 text-[14px] font-semibold text-[var(--color-ink)]">{task.title}</h3>
+              {task.description && <p className="body-copy mt-2">{task.description}</p>}
+            </div>
+          ))
+        ) : (
+          <EmptyInline text="Cuando una tarea termine con éxito, aparecerá aquí como historial de avance." />
+        )}
+      </div>
+    </div>
+  )
+}
+
+
+/** Tarjeta compacta de metrica usada por avance, memoria y consumo. */
+function ProgressFact({ label, value, tone }: { label: string; value: string; tone: string }) {
+  return (
+    <div className="min-w-0 overflow-hidden rounded-[8px] border border-[var(--color-hairline)] bg-[var(--color-canvas-soft)] px-3 py-2.5">
+      <div className="section-kicker truncate text-[10px]" title={label}>{label}</div>
+      <div className="mt-1 break-words text-[14px] font-semibold leading-snug" style={{ color: tone }} title={value}>{value}</div>
+    </div>
+  )
+}
+
+
+/** Visualiza memoria del proyecto con resumen grafico y entradas cronologicas. */
+function MemoryView({ memory }: { memory: MemoryEntryDto[] }) {
+  /** Memoria ordenada por fecha descendente para mostrar lo mas reciente primero. */
+  const sortedMemory = [...memory].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+  /** Entradas creadas por escaneos locales. */
+  const scanEntries = sortedMemory.filter(entry => entry.type === 'scan').length
+  /** Entradas creadas por analisis IA. */
+  const analysisEntries = sortedMemory.filter(entry => entry.type === 'ai-analysis').length
+  /** Entradas creadas al completar tareas. */
+  const completedEntries = sortedMemory.filter(entry => entry.type === 'task-completed').length
+  /** Entrada mas reciente para destacar actividad. */
+  const latestEntry = sortedMemory[0]
+  /** Proporcion de memoria dedicada a tareas completadas. */
+  const completionShare = sortedMemory.length > 0 ? Math.round((completedEntries / sortedMemory.length) * 100) : 0
+  /** Progreso visual del anillo; cada 10 eventos sube hasta completar 100%. */
+  const memoryRingProgress = Math.min(100, sortedMemory.length * 10)
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-4 lg:grid-cols-[176px_minmax(0,1fr)]">
+        <div className="feature-card flex min-h-[156px] flex-col items-center justify-center gap-3 text-center">
+          <div className="relative flex-shrink-0" style={{ width: 82, height: 82 }}>
+            <svg width="82" height="82" viewBox="0 0 82 82">
+              <circle cx="41" cy="41" r="34" fill="none" stroke="var(--color-hairline-strong)" strokeWidth="8" />
+              <circle
+                cx="41" cy="41" r="34" fill="none"
+                stroke={sortedMemory.length > 0 ? '#60A5FA' : '#FBBF24'}
+                strokeWidth="8"
+                strokeLinecap="round"
+                strokeDasharray={`${2 * Math.PI * 34}`}
+                strokeDashoffset={`${2 * Math.PI * 34 * (1 - memoryRingProgress / 100)}`}
+                transform="rotate(-90 41 41)"
+                style={{ transition: 'stroke-dashoffset 0.9s ease-out' }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="font-bold text-[18px]">{sortedMemory.length}</span>
+            </div>
+          </div>
+          <div>
+            <div className="section-kicker">memoria</div>
+            <div className="display-sm">{sortedMemory.length}</div>
+            <div className="section-kicker mt-1 text-[11px]">eventos guardados</div>
+          </div>
+        </div>
+
+        <div className="feature-card flex min-w-0 flex-col justify-center gap-4">
+          <div className="grid min-w-0 grid-cols-2 gap-3">
+            <ProgressFact label="Scans" value={String(scanEntries)} tone="#60A5FA" />
+            <ProgressFact label="Análisis IA" value={String(analysisEntries)} tone="#A78BFA" />
+            <ProgressFact label="Tareas" value={String(completedEntries)} tone="#34D399" />
+            <ProgressFact label="Total eventos" value={String(sortedMemory.length)} tone="#FBBF24" />
+          </div>
+          <div className="min-w-0">
+            <div className="mb-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 text-[12px] text-[var(--color-muted)]">
+              <span>Peso de tareas completadas dentro de la memoria</span>
+              <span>{completionShare}%</span>
+            </div>
+            <div className="metric-track">
+              <div
+                className="metric-fill"
+                style={{
+                  width: `${completionShare}%`,
+                  background: 'linear-gradient(90deg, #34D399, #A78BFA)',
+                  transition: 'width 0.9s ease-out'
+                }}
+              />
+            </div>
+          </div>
+          <div className="grid gap-2">
+            <div className="flex min-w-0 items-center justify-between gap-3 rounded-[8px] bg-[var(--color-canvas-soft)] px-3 py-2">
+              <span className="section-kicker text-[10px]">Última entrada</span>
+              <span className="min-w-0 truncate text-right text-[12px] font-semibold text-[var(--color-ink)]" title={latestEntry ? formatDate(latestEntry.createdAt) : 'sin memoria'}>
+                {latestEntry ? formatDate(latestEntry.createdAt) : 'sin memoria'}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span className="badge">auditoría local</span>
+              <span className="badge">historial del proyecto</span>
+              <span className="badge">últimas 100 entradas</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {sortedMemory.length ? (
+          sortedMemory.map((entry) => (
             <div key={entry.id} className="memory-row p-5">
-              <div className="flex items-center justify-between gap-3">
-                <span className="badge">{entry.type}</span>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="badge">{entry.type}</span>
+                  {entry.metadata && <span className="badge">metadata</span>}
+                </div>
                 <span className="section-kicker">{formatDate(entry.createdAt)}</span>
               </div>
               <p className="body-copy mt-3">{entry.content}</p>
             </div>
           ))
         ) : (
-          <EmptyInline text="La memoria se llenara con scans y analisis IA." />
+          <EmptyInline text="La memoria se llenará con scans, análisis IA y tareas completadas." />
         )}
       </div>
-    </section>
+    </div>
   )
 }
 
+/** Panel de consumo IA con presupuesto mensual, proveedores e historial reciente. */
 function UsageView({ usage }: { usage: AIUsageSummaryDto | null }) {
   if (!usage) {
     return <EmptyState title="Consumo no disponible" action="Ejecuta una consulta IA para crear el primer registro." />
   }
 
+  /** Presupuesto total configurado sumando limites mensuales por proveedor. */
+  const totalBudget = usage.byProvider.reduce((sum, item) => sum + (item.monthlyTokenLimit ?? 0), 0)
+  /** Porcentaje de uso del presupuesto; se limita a 100 para mantener el grafico estable. */
+  const tokenUsagePercent = totalBudget > 0 ? Math.min(100, Math.round((usage.totalTokens / totalBudget) * 100)) : 0
+  /** Cantidad de proveedores con consumo registrado. */
+  const activeProviders = usage.byProvider.length
+  /** Ultimo registro de consumo para badges de actividad. */
+  const latestUsage = usage.history[0] ?? null
+
   return (
     <div className="space-y-5">
-      <section className="grid gap-4 md:grid-cols-4">
-        <Fact label="Entrada" value={`${usage.totalInputTokens} tokens`} />
-        <Fact label="Salida" value={`${usage.totalOutputTokens} tokens`} />
-        <Fact label="Total" value={`${usage.totalTokens} tokens`} />
-        <Fact label="Costo estimado" value={`$${usage.estimatedCostUsd}`} />
-      </section>
-      <section className="panel">
-        <h2 className="section-title">Consumo por proveedor</h2>
-        <div className="mt-4 space-y-3">
+      <div className="grid gap-4 lg:grid-cols-[176px_minmax(0,1fr)]">
+        <div className="feature-card flex min-h-[156px] flex-col items-center justify-center gap-3 text-center">
+          <div className="relative flex-shrink-0" style={{ width: 82, height: 82 }}>
+            <svg width="82" height="82" viewBox="0 0 82 82">
+              <circle cx="41" cy="41" r="34" fill="none" stroke="var(--color-hairline-strong)" strokeWidth="8" />
+              <circle
+                cx="41" cy="41" r="34" fill="none"
+                stroke={tokenUsagePercent >= 80 ? '#F87171' : tokenUsagePercent >= 50 ? '#FBBF24' : '#34D399'}
+                strokeWidth="8"
+                strokeLinecap="round"
+                strokeDasharray={`${2 * Math.PI * 34}`}
+                strokeDashoffset={`${2 * Math.PI * 34 * (1 - tokenUsagePercent / 100)}`}
+                transform="rotate(-90 41 41)"
+                style={{ transition: 'stroke-dashoffset 0.9s ease-out' }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="font-bold text-[18px]">{tokenUsagePercent}%</span>
+            </div>
+          </div>
+          <div>
+            <div className="section-kicker">consumo</div>
+            <div className="display-sm">{usage.totalTokens}</div>
+            <div className="section-kicker mt-1 text-[11px]">tokens totales</div>
+          </div>
+        </div>
+
+        <div className="feature-card flex min-w-0 flex-col justify-center gap-4">
+          <div className="grid min-w-0 grid-cols-2 gap-3">
+            <ProgressFact label="Entrada" value={`${usage.totalInputTokens}`} tone="#60A5FA" />
+            <ProgressFact label="Salida" value={`${usage.totalOutputTokens}`} tone="#A78BFA" />
+            <ProgressFact label="Costo" value={`$${usage.estimatedCostUsd}`} tone="#34D399" />
+            <ProgressFact label="Proveedores" value={String(activeProviders)} tone="#FBBF24" />
+          </div>
+          <div className="min-w-0">
+            <div className="mb-2 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 text-[12px] text-[var(--color-muted)]">
+              <span>Uso del presupuesto mensual configurado</span>
+              <span>{totalBudget > 0 ? `${tokenUsagePercent}%` : 'sin límite'}</span>
+            </div>
+            <div className="metric-track">
+              <div
+                className="metric-fill"
+                style={{
+                  width: `${totalBudget > 0 ? tokenUsagePercent : 100}%`,
+                  background: totalBudget > 0 ? 'linear-gradient(90deg, #34D399, #FBBF24)' : 'var(--color-hairline-strong)',
+                  transition: 'width 0.9s ease-out'
+                }}
+              />
+            </div>
+          </div>
+          <div className="grid gap-2">
+            <div className="flex min-w-0 items-center justify-between gap-3 rounded-[8px] bg-[var(--color-canvas-soft)] px-3 py-2">
+              <span className="section-kicker text-[10px]">Último uso</span>
+              <span className="min-w-0 truncate text-right text-[12px] font-semibold text-[var(--color-ink)]" title={latestUsage ? formatDate(latestUsage.createdAt) : 'sin uso'}>
+                {latestUsage ? formatDate(latestUsage.createdAt) : 'sin uso'}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span className="badge">{usage.history.length} registros</span>
+              <span className="badge">{totalBudget > 0 ? `${totalBudget} tokens límite` : 'sin límite mensual'}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="space-y-3">
+          <div className="section-kicker">Consumo por proveedor</div>
           {usage.byProvider.length ? (
             usage.byProvider.map((item) => {
               const percent = item.monthlyTokenLimit ? Math.min(100, Math.round((item.totalTokens / item.monthlyTokenLimit) * 100)) : 0
@@ -1077,53 +1392,47 @@ function UsageView({ usage }: { usage: AIUsageSummaryDto | null }) {
                     <span className="badge">${item.estimatedCostUsd}</span>
                   </div>
                   <div className="metric-track mt-4">
-                    <div className="metric-fill" style={{ width: `${percent}%` }} />
+                    <div className="metric-fill" style={{ width: `${item.monthlyTokenLimit ? percent : 100}%` }} />
                   </div>
                 </div>
               )
             })
           ) : (
-            <EmptyInline text="Aun no hay consumo registrado." />
+            <EmptyInline text="Aún no hay consumo registrado." />
           )}
         </div>
-      </section>
-      <section className="panel">
-        <h2 className="section-title">Historial</h2>
-        <div className="mt-4 overflow-auto">
-          <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="section-kicker">
-              <tr>
-                <th className="py-2">Fecha</th>
-                <th>Proveedor</th>
-                <th>Modelo</th>
-                <th>Tarea</th>
-                <th>Entrada</th>
-                <th>Salida</th>
-                <th>Total</th>
-                <th>Estimado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {usage.history.map((item) => (
-                <tr key={item.id} className="border-t" style={{ borderColor: 'var(--color-hairline)' }}>
-                  <td className="py-2">{formatDate(item.createdAt)}</td>
-                  <td>{item.providerName}</td>
-                  <td>{item.model}</td>
-                  <td>{item.taskType}</td>
-                  <td>{item.inputTokens ?? 'no disponible'}</td>
-                  <td>{item.outputTokens ?? 'no disponible'}</td>
-                  <td>{item.totalTokens ?? 'no disponible'}</td>
-                  <td>{item.isEstimate ? 'si' : 'no'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+        <div className="space-y-3">
+          <div className="section-kicker">Historial reciente</div>
+          {usage.history.length ? (
+            usage.history.slice(0, 12).map((item) => (
+              <div key={item.id} className="memory-row p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="badge">{item.providerName}</span>
+                    <span className="badge">{item.taskType}</span>
+                    <span className="badge">{item.isEstimate ? 'estimado' : 'real'}</span>
+                  </div>
+                  <span className="section-kicker">{formatDate(item.createdAt)}</span>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <ProgressFact label="Entrada" value={`${item.inputTokens ?? 'n/d'}`} tone="#60A5FA" />
+                  <ProgressFact label="Salida" value={`${item.outputTokens ?? 'n/d'}`} tone="#A78BFA" />
+                  <ProgressFact label="Total" value={`${item.totalTokens ?? 'n/d'}`} tone="#34D399" />
+                </div>
+                <p className="section-kicker mt-3">{item.model}</p>
+              </div>
+            ))
+          ) : (
+            <EmptyInline text="Ejecuta una consulta IA para crear el primer registro de consumo." />
+          )}
         </div>
-      </section>
+      </div>
     </div>
   )
 }
 
+/** Tarjeta simple de dato usada en paneles legacy del dashboard. */
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="fact min-w-0 p-4">
@@ -1135,6 +1444,7 @@ function Fact({ label, value }: { label: string; value: string }) {
   )
 }
 
+/** Barra inferior con estado global, errores y notificaciones de operacion. */
 function StatusBar({ error, notice }: { error: string | null; notice: string | null }) {
   return (
     <footer className="status-bar">
@@ -1165,6 +1475,7 @@ function StatusBar({ error, notice }: { error: string | null; notice: string | n
   )
 }
 
+/** Estado vacio de pantalla completa para flujos sin proyecto, scan o consumo. */
 function EmptyState({ title, action }: { title: string; action: string }) {
   return (
     <section className="panel flex min-h-[360px] items-center justify-center text-center">
@@ -1177,10 +1488,12 @@ function EmptyState({ title, action }: { title: string; action: string }) {
   )
 }
 
+/** Estado vacio compacto para listas dentro de paneles. */
 function EmptyInline({ text }: { text: string }) {
   return <div className="inline-empty body-copy p-4">{text}</div>
 }
 
+/** Formatea fechas ISO al locale espanol para toda la UI. */
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('es', {
     dateStyle: 'medium',

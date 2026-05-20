@@ -5,7 +5,9 @@ import { toProjectDto } from '@database/mappers'
 import type { ProjectDto } from '@shared/types/workspace'
 import { assertDirectory } from '@main/security/workspace-guard'
 
+/** Servicio de catalogo de proyectos importados por el usuario. */
 export class ProjectService {
+  /** Abre el dialogo nativo de Electron y registra la carpeta seleccionada. */
   async openProject(owner?: BrowserWindow | null): Promise<ProjectDto | null> {
     const options: OpenDialogOptions = {
       title: 'Selecciona un proyecto',
@@ -20,6 +22,7 @@ export class ProjectService {
     return this.importProject(result.filePaths[0])
   }
 
+  /** Importa o actualiza un proyecto por ruta, validando que sea una carpeta real. */
   async importProject(workspacePath: string): Promise<ProjectDto> {
     const resolvedPath = await assertDirectory(workspacePath)
     const name = path.basename(resolvedPath)
@@ -38,6 +41,7 @@ export class ProjectService {
     return toProjectDto(project)
   }
 
+  /** Lista proyectos recientes con su ultimo escaneo para pintar el dashboard. */
   async getProjects(): Promise<ProjectDto[]> {
     const projects = await prisma.project.findMany({
       orderBy: { updatedAt: 'desc' },
@@ -52,6 +56,7 @@ export class ProjectService {
     return projects.map(toProjectDto)
   }
 
+  /** Elimina proyectos no activos para dejar una sola ficha visible cuando el usuario limpia. */
   async cleanInactiveProjects(activeProjectId: string): Promise<void> {
     await prisma.project.deleteMany({
       where: {

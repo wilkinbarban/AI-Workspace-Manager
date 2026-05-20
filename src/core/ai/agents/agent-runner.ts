@@ -3,6 +3,7 @@ import type { AIProviderAdapter, AIProviderRuntimeConfig, AIChatMessage } from '
 import type { SkillContext } from '../skills/skill.types'
 import type { AgentEvent } from '@shared/types/workspace'
 
+/** Dependencias necesarias para ejecutar un agente con proveedor, contexto y stream de eventos. */
 export interface AgentRunnerOptions {
   provider: AIProviderAdapter
   config: AIProviderRuntimeConfig
@@ -10,10 +11,14 @@ export interface AgentRunnerOptions {
   onEvent: (event: AgentEvent) => void
 }
 
+/** Bucle agente-herramientas: conversa con el LLM, ejecuta skills y devuelve resultado final. */
 export class AgentRunner {
+  /** Las opciones se inyectan para mantener el runner desacoplado de servicios Electron/Prisma. */
   constructor(private readonly options: AgentRunnerOptions) {}
 
+  /** Ejecuta un prompt hasta que el modelo deje de solicitar herramientas o alcance el limite. */
   async run(prompt: string): Promise<string> {
+    // Historial completo enviado en cada iteracion para proveedores sin estado de sesion.
     const messages: AIChatMessage[] = [
       {
         role: 'system',
@@ -29,6 +34,7 @@ Responde siempre de forma analítica y útil. REGLA MUY IMPORTANTE: Cuando termi
       }
     ]
 
+    // Convierte skills internas al formato generico de function calling.
     const tools = allSkills.map(skill => ({
       type: 'function' as const,
       function: {
@@ -38,6 +44,7 @@ Responde siempre de forma analítica y útil. REGLA MUY IMPORTANTE: Cuando termi
       }
     }))
 
+    // Limite defensivo para evitar loops infinitos de tool calling.
     const MAX_ITERATIONS = 40
     let iterations = 0
 
@@ -79,7 +86,9 @@ Responde siempre de forma analítica y útil. REGLA MUY IMPORTANTE: Cuando termi
               toolResult = `Error: Herramienta ${toolCall.function.name} no encontrada.`
             } else {
               try {
+                // Los argumentos llegan como JSON string emitido por el proveedor IA.
                 const args = JSON.parse(toolCall.function.arguments || '{}')
+                // Extiende el contexto con reporte de diffs sin dar mas permisos al agente.
                 const contextWithDiff = {
                   ...this.options.context,
                   onFileDiff: (diff: { filePath: string; before: string | null; after: string }) => {
@@ -111,7 +120,7 @@ Responde siempre de forma analítica y útil. REGLA MUY IMPORTANTE: Cuando termi
             })
           }
         } else {
-          // No tool calls, we are done
+          // Sin tool calls pendientes: el agente termino y la respuesta es final.
           this.options.onEvent({
             type: 'done',
             message: 'Agente ha terminado su tarea.'
@@ -133,6 +142,7 @@ Responde siempre de forma analítica y útil. REGLA MUY IMPORTANTE: Cuando termi
   }
 }
 
+/** Normaliza errores desconocidos a mensaje legible para eventos del agente. */
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Error desconocido.'
 }

@@ -8,32 +8,30 @@ import type {
 import { OpenAICompatibleProvider } from './base.provider'
 import { normalizeAIResponse } from '@core/ai/core/ai-response'
 
-// ─── Architecture note ────────────────────────────────────────────────────────
+// Nota de arquitectura
 //
-// OpenRouter provides a unified, OpenAI-compatible API to access hundreds of
-// LLMs. While highly compatible, it requires specific handling:
+// OpenRouter ofrece una API unificada y compatible con OpenAI para acceder a
+// multiples LLMs. Aunque es compatible, requiere manejo especifico:
 //
-//  1. Headers: Expects `HTTP-Referer` and `X-Title` to identify the app.
-//  2. Reasoning: Supports `include_reasoning: true` to return thinking steps
-//     in the `reasoning` field of the response.
-//  3. Models: Changes dynamically. We provide a robust default set, but
-//     expose `fetchAvailableModels()` to query `/api/v1/models` in real-time.
-//  4. SSE Streaming: Identical to OpenAI, but reasoning tokens may arrive.
+//  1. Headers: espera `HTTP-Referer` y `X-Title` para identificar la app.
+//  2. Reasoning: soporta `include_reasoning: true` y devuelve `reasoning`.
+//  3. Modelos: cambian dinamicamente; se provee fallback y carga por API.
+//  4. Streaming SSE: igual a OpenAI, pero puede incluir tokens de razonamiento.
 //
-// Reference: https://openrouter.ai/docs
+// Referencia: https://openrouter.ai/docs
 
 const OPENROUTER_API_BASE = 'https://openrouter.ai/api/v1'
 
 /**
- * Standard robust models usually available on OpenRouter.
- * This acts as a fallback if dynamic loading is not used.
+ * Modelos robustos usualmente disponibles en OpenRouter.
+ * Funcionan como fallback si no se usa carga dinamica.
  */
 const DEFAULT_OPENROUTER_MODELS = [
   'openai/gpt-4.1',
   'openai/gpt-4.1-mini',
   'openai/gpt-4o',
   'openai/o4-mini',
-  'anthropic/claude-3.5-sonnet', // Note: OpenRouter uses specific naming for anthropic
+  'anthropic/claude-3.5-sonnet', // OpenRouter usa nombres propios para modelos Anthropic.
   'anthropic/claude-3-opus',
   'google/gemini-2.5-pro',
   'google/gemini-2.5-flash',
@@ -41,7 +39,7 @@ const DEFAULT_OPENROUTER_MODELS = [
   'deepseek/deepseek-reasoner'
 ]
 
-// ─── OpenRouter Wire Types ───────────────────────────────────────────────────
+// Tipos nativos del protocolo OpenRouter
 
 interface OpenRouterModelMetadata {
   id: string
@@ -63,7 +61,7 @@ interface OpenRouterResponse {
     message: {
       role: 'assistant'
       content: string | null
-      /** Included if include_reasoning is true */
+      /** Presente cuando include_reasoning es true. */
       reasoning?: string | null
       tool_calls?: Array<{
         id: string
@@ -103,7 +101,7 @@ interface OpenRouterStreamChunk {
   }
 }
 
-// ─── Vision Helper ────────────────────────────────────────────────────────────
+// Helper de vision
 
 function isImageUrl(text: string): boolean {
   return (
@@ -143,10 +141,10 @@ function buildOpenRouterContent(
   return parts
 }
 
-// ─── Provider ─────────────────────────────────────────────────────────────────
+// Provider
 
 export class OpenRouterProvider extends OpenAICompatibleProvider {
-  /** Cached list of dynamic models from OpenRouter */
+  /** Cache local de modelos dinamicos devueltos por OpenRouter. */
   private cachedModels: string[] | null = null
 
   constructor() {
@@ -165,11 +163,10 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
     })
   }
 
-  // ─── Dynamic Model Loading ──────────────────────────────────────────────────
+  // Carga dinamica de modelos
 
   /**
-   * Fetches all available models directly from the OpenRouter API.
-   * Caches the result to avoid redundant network requests.
+   * Descarga modelos disponibles desde OpenRouter y cachea el resultado.
    */
   async fetchAvailableModels(config?: AIProviderRuntimeConfig): Promise<string[]> {
     if (this.cachedModels) return this.cachedModels
@@ -182,7 +179,7 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
       
       this.cachedModels = response.data.data.map((m) => m.id)
       
-      // Merge with default to ensure core models are present if API fails partially
+      // Fusiona con defaults para conservar modelos base si la API responde parcial.
       const uniqueModels = new Set([...DEFAULT_OPENROUTER_MODELS, ...this.cachedModels])
       return Array.from(uniqueModels).sort()
     } catch (error) {
@@ -191,7 +188,7 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
     }
   }
 
-  // ─── Validation ─────────────────────────────────────────────────────────────
+  // Validacion
 
   override validateConfig(config: AIProviderRuntimeConfig): { ok: boolean; message: string } {
     const base = super.validateConfig(config)
@@ -207,7 +204,7 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
     return { ok: true, message: 'Configuracion OpenRouter valida.' }
   }
 
-  // ─── Header Injection ───────────────────────────────────────────────────────
+  // Inyeccion de headers requeridos por OpenRouter
 
   protected override headers(config: AIProviderRuntimeConfig): Record<string, string> {
     const baseHeaders = super.headers(config)
@@ -218,7 +215,7 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
     }
   }
 
-  // ─── Chat (non-streaming) ─────────────────────────────────────────────────
+  // Chat sin streaming
 
   override async chat(
     config: AIProviderRuntimeConfig,
@@ -239,7 +236,7 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
     return this.adaptResponse(response.data, request)
   }
 
-  // ─── Streaming (SSE) ────────────────────────────────────────────────────────
+  // Streaming SSE
 
   async *streamChat(
     config: AIProviderRuntimeConfig,
@@ -279,17 +276,17 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
           const parsed = JSON.parse(raw) as OpenRouterStreamChunk
           const delta = parsed.choices?.[0]?.delta
 
-          // Yield final answer tokens (ignoring reasoning tokens for simplicity in stream)
+          // Emite tokens de respuesta final e ignora razonamiento en streaming.
           const text = delta?.content
           if (typeof text === 'string' && text) yield text
         } catch {
-          // Malformed SSE line — skip silently
+          // Linea SSE malformada: se ignora sin interrumpir el stream.
         }
       }
     }
   }
 
-  // ─── Private helpers ────────────────────────────────────────────────────────
+  // Helpers privados
 
   private buildRequestBody(
     config: AIProviderRuntimeConfig,
@@ -325,7 +322,7 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
       model: config.model,
       messages,
       temperature: 0.2,
-      include_reasoning: true, // Native OpenRouter parameter to capture thinking models
+      include_reasoning: true, // Parametro nativo para capturar razonamiento de modelos compatibles.
       max_tokens: tools?.length ? 8192 : request.responseFormat === 'json' ? 8192 : 4096,
       ...(request.responseFormat === 'json'
         ? { response_format: { type: 'json_object' } }

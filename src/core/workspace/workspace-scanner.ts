@@ -3,6 +3,7 @@ import fs from 'fs-extra'
 import fg from 'fast-glob'
 import type { FileTreeNode, WorkspaceAnalysis, WorkspaceHealth } from '@shared/types/workspace'
 
+/** Directorios descartados para evitar ruido, lentitud y artefactos generados. */
 const IGNORED_DIRECTORIES = [
   'node_modules',
   '.git',
@@ -18,10 +19,14 @@ const IGNORED_DIRECTORIES = [
   '__pycache__'
 ]
 
+/** Umbral a partir del cual un archivo se reporta como grande. */
 const LARGE_FILE_BYTES = 1024 * 1024
+/** Numero maximo de archivos representados en el arbol visual. */
 const MAX_TREE_FILES = 500
+/** Limite duro de archivos inspeccionados para mantener escaneos responsivos. */
 const MAX_SCAN_FILES = 6000
 
+/** Mapa de extension a lenguaje usado para inferencia rapida sin parsers pesados. */
 const LANGUAGE_BY_EXTENSION: Record<string, string> = {
   '.ts': 'TypeScript',
   '.tsx': 'TypeScript',
@@ -130,6 +135,7 @@ export class WorkspaceScanner {
     }
   }
 
+  /** Lee package.json si existe y evita romper el scan por JSON invalido. */
   private async readPackageJson(workspacePath: string): Promise<Record<string, unknown> | null> {
     const packagePath = path.join(workspacePath, 'package.json')
 
@@ -144,6 +150,7 @@ export class WorkspaceScanner {
     }
   }
 
+  /** Lee archivos de texto opcionales usados para detectar ecosistemas Python. */
   private async readTextIfExists(workspacePath: string, relativePath: string): Promise<string | null> {
     const filePath = path.join(workspacePath, relativePath)
 
@@ -154,6 +161,7 @@ export class WorkspaceScanner {
     return fs.readFile(filePath, 'utf8')
   }
 
+  /** Extrae dependencias de package.json, requirements.txt y pyproject.toml. */
   private detectDependencies(
     packageJson: Record<string, unknown> | null,
     pyproject: string | null,
@@ -185,6 +193,7 @@ export class WorkspaceScanner {
     return [...deps].sort((a, b) => a.localeCompare(b))
   }
 
+  /** Determina el lenguaje principal combinando dependencias y extensiones de archivos. */
   private detectLanguage(
     files: string[],
     packageJson: Record<string, unknown> | null,
@@ -217,6 +226,7 @@ export class WorkspaceScanner {
     return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
   }
 
+  /** Detecta frameworks conocidos a partir de dependencias y archivos de configuracion. */
   private detectFramework(dependencies: string[], files: string[]): string | null {
     const normalized = new Set(dependencies.map((dependency) => dependency.toLowerCase()))
 
@@ -233,6 +243,7 @@ export class WorkspaceScanner {
     return null
   }
 
+  /** Identifica archivos grandes que conviene revisar antes de versionar o analizar. */
   private async detectLargeFiles(workspacePath: string, files: string[]): Promise<string[]> {
     const largeFiles: string[] = []
 
@@ -251,6 +262,7 @@ export class WorkspaceScanner {
     return largeFiles.slice(0, 20)
   }
 
+  /** Busca convenciones comunes de pruebas en proyectos JS/TS y Python. */
   private detectTests(files: string[]): boolean {
     return files.some((file) => {
       const normalized = file.replace(/\\/g, '/').toLowerCase()
@@ -267,6 +279,7 @@ export class WorkspaceScanner {
     })
   }
 
+  /** Convierte señales del scan en problemas concretos para el dashboard y la IA. */
   private detectProblems(input: {
     hasReadme: boolean
     hasLicense: boolean
@@ -289,6 +302,7 @@ export class WorkspaceScanner {
     return problems
   }
 
+  /** Traduce problemas detectados en recomendaciones accionables y sin duplicados. */
   private buildRecommendations(
     problems: string[],
     context: { hasDocker: boolean; hasGit: boolean; mainLanguage: string | null; framework: string | null }
@@ -318,6 +332,7 @@ export class WorkspaceScanner {
     return [...new Set(recommendations)]
   }
 
+  /** Calcula una puntuacion heuristica de salud por dimensiones del proyecto. */
   private calculateHealth(input: {
     hasReadme: boolean
     hasLicense: boolean
@@ -355,6 +370,7 @@ export class WorkspaceScanner {
     }
   }
 
+  /** Construye un arbol jerarquico serializable desde rutas relativas ordenadas. */
   private buildFileTree(files: string[]): FileTreeNode[] {
     const root: FileTreeNode[] = []
 

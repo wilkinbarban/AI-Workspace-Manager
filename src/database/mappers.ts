@@ -8,6 +8,7 @@ import type {
 } from '@shared/types/workspace'
 import { parseJson } from './client'
 
+/** Forma minima del registro Prisma de proyecto usada por los mapeadores. */
 type ProjectRecord = {
   id: string
   name: string
@@ -20,6 +21,7 @@ type ProjectRecord = {
   scans?: ScanRecord[]
 }
 
+/** Registro de escaneo con blobs JSON persistidos como texto. */
 type ScanRecord = {
   id: string
   projectId: string
@@ -32,6 +34,7 @@ type ScanRecord = {
   createdAt: Date
 }
 
+/** Registro de tarea antes de convertir estados string a tipos compartidos. */
 type TaskRecord = {
   id: string
   projectId: string
@@ -44,6 +47,7 @@ type TaskRecord = {
   updatedAt: Date
 }
 
+/** Registro de memoria con metadata opcional serializada. */
 type MemoryRecord = {
   id: string
   projectId: string
@@ -53,6 +57,7 @@ type MemoryRecord = {
   createdAt: Date
 }
 
+/** Registro persistido de proveedor IA sin exponer el secreto real. */
 type AIProviderRecord = {
   id: string
   name: string
@@ -70,6 +75,7 @@ type AIProviderRecord = {
   updatedAt: Date
 }
 
+/** Registro persistido de consumo IA usado para reportes agregados. */
 type AIUsageRecord = {
   id: string
   providerId: string | null
@@ -86,6 +92,7 @@ type AIUsageRecord = {
   createdAt: Date
 }
 
+/** Convierte un proyecto Prisma a DTO serializable para IPC. */
 export function toProjectDto(project: ProjectRecord): ProjectDto {
   const latestScan = project.scans?.[0] ? toWorkspaceScanDto(project.scans[0]) : null
 
@@ -102,6 +109,7 @@ export function toProjectDto(project: ProjectRecord): ProjectDto {
   }
 }
 
+/** Reconstruye un escaneo desde JSON persistido y fechas Date a strings ISO. */
 export function toWorkspaceScanDto(scan: ScanRecord): WorkspaceScanDto {
   return {
     id: scan.id,
@@ -139,6 +147,7 @@ export function toWorkspaceScanDto(scan: ScanRecord): WorkspaceScanDto {
   }
 }
 
+/** Convierte una tarea Prisma a contrato compartido del renderer. */
 export function toTaskDto(task: TaskRecord): TaskDto {
   return {
     id: task.id,
@@ -153,6 +162,7 @@ export function toTaskDto(task: TaskRecord): TaskDto {
   }
 }
 
+/** Convierte una entrada de memoria a DTO y parsea metadata defensivamente. */
 export function toMemoryEntryDto(memory: MemoryRecord): MemoryEntryDto {
   return {
     id: memory.id,
@@ -164,6 +174,7 @@ export function toMemoryEntryDto(memory: MemoryRecord): MemoryEntryDto {
   }
 }
 
+/** Convierte la configuracion de proveedor IA a DTO seguro para UI. */
 export function toAIProviderDto(provider: AIProviderRecord): AIProviderDto {
   return {
     id: provider.id,
@@ -183,6 +194,7 @@ export function toAIProviderDto(provider: AIProviderRecord): AIProviderDto {
   }
 }
 
+/** Convierte un registro de uso IA a DTO de historial y graficas. */
 export function toAIUsageDto(usage: AIUsageRecord): AIUsageDto {
   return {
     id: usage.id,

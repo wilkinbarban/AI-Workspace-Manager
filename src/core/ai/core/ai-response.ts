@@ -1,6 +1,7 @@
 import type { AIAnalysisResponse } from '@shared/types/workspace'
 import { aiResponseSchema } from '@shared/schemas/api'
 
+/** Extrae y valida JSON de una respuesta IA, con fallback seguro a texto no estructurado. */
 export function normalizeAIResponse(rawContent: string): AIAnalysisResponse {
   const jsonText = extractJson(rawContent)
 
@@ -17,6 +18,7 @@ export function normalizeAIResponse(rawContent: string): AIAnalysisResponse {
   }
 }
 
+/** Extrae contadores de uso desde respuestas heterogeneas de proveedores IA. */
 export function extractUsageFromUnknown(value: unknown) {
   if (!value || typeof value !== 'object') {
     return { inputTokens: null, outputTokens: null, totalTokens: null, remainingTokens: null, estimatedCostUsd: null, isEstimate: true }
@@ -37,6 +39,7 @@ export function extractUsageFromUnknown(value: unknown) {
   }
 }
 
+/** Recupera el primer bloque JSON aunque venga dentro de fences markdown. */
 function extractJson(content: string): string {
   const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i)
   if (fenced?.[1]) return fenced[1].trim()
@@ -48,10 +51,12 @@ function extractJson(content: string): string {
   return content
 }
 
+/** Convierte valores desconocidos a numero finito o null. */
 function numberOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
+/** Suma dos valores opcionales preservando null cuando no hay datos. */
 function sumNullable(a: unknown, b: unknown): number | null {
   const left = numberOrNull(a)
   const right = numberOrNull(b)
@@ -59,6 +64,7 @@ function sumNullable(a: unknown, b: unknown): number | null {
   return (left ?? 0) + (right ?? 0)
 }
 
+/** Lee una ruta anidada de forma segura sobre objetos/arrays desconocidos. */
 function getPath(value: unknown, path: Array<string | number>): unknown {
   let current = value
 
@@ -77,6 +83,7 @@ function getPath(value: unknown, path: Array<string | number>): unknown {
   return current
 }
 
+/** Type guard para tratar unknown como diccionario indexable. */
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
 }
