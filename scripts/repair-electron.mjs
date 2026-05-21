@@ -36,6 +36,11 @@ main().catch((error) => {
 
 /** Flujo principal: valida Electron, intenta instalador oficial y reconstruye desde artifact si falla. */
 async function main() {
+  if (shouldSkipElectronRepair()) {
+    console.log('Modo web headless en Linux detectado. Se omite la reparacion de Electron.')
+    return
+  }
+
   if (isElectronInstallValid()) {
     console.log(`Electron ${version} ya esta instalado correctamente.`)
     return
@@ -56,10 +61,19 @@ async function main() {
   await rebuildFromArtifact()
 
   if (!isElectronInstallValid()) {
-    throw new Error('La reparacion de Electron termino, pero electron.exe/path.txt/version siguen ausentes o invalidos.')
+    throw new Error(`La reparacion de Electron termino, pero ${platformPath}/path.txt/version siguen ausentes o invalidos.`)
   }
 
   console.log('Electron reparado correctamente.')
+}
+
+/** Linux usa el servidor web headless por defecto; Electron solo se repara si se habilita explicitamente. */
+function shouldSkipElectronRepair() {
+  if (process.env.AIWM_SKIP_ELECTRON_REPAIR === '1') {
+    return true
+  }
+
+  return os.platform() === 'linux' && process.env.AIWM_ENABLE_ELECTRON_ON_LINUX !== '1'
 }
 
 /** Comprueba version, path.txt y ejecutable para detectar instalaciones incompletas. */

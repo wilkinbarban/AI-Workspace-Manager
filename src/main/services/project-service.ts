@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { BrowserWindow, dialog, type OpenDialogOptions } from 'electron'
+import type { BrowserWindow, OpenDialogOptions } from 'electron'
 import { prisma } from '@database/client'
 import { toProjectDto } from '@database/mappers'
 import type { ProjectDto } from '@shared/types/workspace'
@@ -9,17 +9,22 @@ import { assertDirectory } from '@main/security/workspace-guard'
 export class ProjectService {
   /** Abre el dialogo nativo de Electron y registra la carpeta seleccionada. */
   async openProject(owner?: BrowserWindow | null): Promise<ProjectDto | null> {
-    const options: OpenDialogOptions = {
-      title: 'Selecciona un proyecto',
-      properties: ['openDirectory', 'createDirectory']
-    }
-    const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options)
+    try {
+      const electron = await import('electron')
+      const options: OpenDialogOptions = {
+        title: 'Selecciona un proyecto',
+        properties: ['openDirectory', 'createDirectory']
+      }
+      const result = owner ? await electron.dialog.showOpenDialog(owner, options) : await electron.dialog.showOpenDialog(options)
 
-    if (result.canceled || result.filePaths.length === 0) {
-      return null
-    }
+      if (result.canceled || result.filePaths.length === 0) {
+        return null
+      }
 
-    return this.importProject(result.filePaths[0])
+      return this.importProject(result.filePaths[0])
+    } catch {
+      throw new Error('El diálogo de selección de archivos no está disponible en este entorno. Por favor, introduzca la ruta absoluta manualmente.')
+    }
   }
 
   /** Importa o actualiza un proyecto por ruta, validando que sea una carpeta real. */

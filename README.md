@@ -1,71 +1,61 @@
 # AI Workspace Manager
 
 **Version actual:** `0.1.0`  
-**Estado:** aplicacion de escritorio en desarrollo activo  
-**Plataforma principal:** Windows, Electron, React, TypeScript y SQLite
+**Estado:** aplicacion en desarrollo activo  
+**Plataformas:** Windows con Electron; Linux/WSL con servidor web headless; macOS con Electron
 
-AI Workspace Manager es un centro de control local para analizar, documentar, organizar y mejorar proyectos de software con ayuda de IA. La aplicacion escanea repositorios en tu equipo, detecta tecnologias y senales de salud, registra memoria del proyecto, crea tareas accionables y permite conectar proveedores de IA para analisis, asistencia y ejecucion guiada de tareas.
+AI Workspace Manager es un centro de control local para analizar, documentar, organizar y mejorar proyectos de software con ayuda de IA. La aplicacion escanea repositorios en tu equipo, detecta tecnologias y senales de salud, registra memoria del proyecto, crea tareas accionables y permite conectar proveedores de IA para analisis, asistencia y ejecucion guiada.
 
 El objetivo no es reemplazar tu editor ni tu flujo Git, sino darte una vista operativa del estado de tus workspaces y un punto unico para convertir hallazgos tecnicos en acciones concretas.
 
 ## Para que sirve
 
 - Auditar rapidamente proyectos locales y entender su estructura.
-- Detectar lenguaje principal, framework, dependencias, presencia de README, licencia, Git, Docker y tests.
-- Calcular un health score por areas como documentacion, tests, seguridad, Git, Docker, arquitectura y mantenibilidad.
-- Registrar memoria local del proyecto con resultados de scans y decisiones utiles.
+- Detectar lenguaje principal, framework, dependencias, README, licencia, Git, Docker y tests.
+- Calcular un health score por documentacion, tests, seguridad, Git, Docker, arquitectura y mantenibilidad.
+- Registrar memoria local del proyecto con scans, analisis IA y tareas completadas.
 - Crear y seguir tareas de mantenimiento tecnico.
 - Configurar proveedores de IA y probar sus conexiones desde la interfaz.
 - Ejecutar agentes sobre tareas, con monitor de eventos y registro de diffs.
 - Controlar consumo estimado de tokens y costos por proveedor, modelo y tipo de tarea.
 
-## Funcionalidades principales
+## Modos de ejecucion
 
-### Escaneo de workspaces
+### Windows
 
-El scanner recorre el proyecto seleccionado, ignora carpetas pesadas como `node_modules`, `.git`, `dist`, `build`, `.cache`, `.venv` y similares, y genera:
+Windows usa la aplicacion Electron de escritorio. El instalador `install.ps1` descarga el proyecto, instala dependencias, prepara Prisma/SQLite, valida Electron y arranca `npm run dev`.
 
-- resumen del proyecto;
-- arbol de archivos limitado para visualizacion;
-- dependencias detectadas desde `package.json`, `pyproject.toml` y `requirements.txt`;
-- problemas y recomendaciones;
-- metricas de salud.
+### Linux y WSL
 
-### Dashboard de salud
+Linux y WSL usan exclusivamente el modo web headless. No se intenta abrir Electron ni depender de una interfaz grafica nativa. El flujo inicia:
 
-La aplicacion persiste los scans en SQLite y actualiza datos del proyecto como lenguaje, framework y puntuacion de salud. El dashboard muestra metricas para revisar el estado general y priorizar mejoras.
+- backend Node.js local en `http://localhost:3000`;
+- frontend Vite en `http://localhost:5173`;
+- WebSocket API en `/ws`, proxyado por Vite hacia el backend.
 
-### Proveedores de IA
+El boton para anadir proyecto solicita una ruta absoluta del sistema Linux/WSL, por ejemplo:
 
-El proyecto incluye adaptadores para:
+```text
+/home/usuario/workspace/mi-proyecto
+```
 
-- OpenAI / GPT / Codex;
-- Anthropic Claude;
-- DeepSeek;
-- Google Gemini;
-- OpenRouter.
+### macOS
 
-Las credenciales configuradas desde la interfaz se guardan mediante el almacen seguro del sistema cuando `keytar` esta disponible. Tambien existe soporte de fallback por variables de entorno para desarrollo, CI o escenarios sin interfaz grafica.
-
-### Agentes, tareas y memoria
-
-AI Workspace Manager permite convertir hallazgos en tareas, conservar memoria local asociada al proyecto y ejecutar agentes con herramientas internas de lectura, listado y escritura controlada de archivos. El monitor del agente muestra eventos de ejecucion, llamadas de herramientas, resultados y diffs generados.
-
-### Seguimiento de uso
-
-Cada interaccion IA puede registrar proveedor, modelo, tipo de tarea, tokens de entrada/salida, total estimado y costo aproximado. Esto ayuda a entender el consumo mensual y comparar proveedores.
+macOS conserva el flujo Electron de escritorio. El instalador Bash valida Node/npm, instala dependencias, repara Electron si hace falta y arranca `npm run dev`.
 
 ## Requisitos
 
-- Windows 10/11 con PowerShell.
 - Node.js `>= 20`.
 - npm `>= 10`.
-- Acceso a internet para descargar dependencias y, si usas el instalador de un clic, descargar el ZIP del repositorio.
-- Opcional: `winget`, usado por el instalador para instalar Node.js si no esta disponible.
+- Acceso a internet para descargar dependencias y el codigo fuente.
+- Windows: PowerShell y, opcionalmente, `winget`.
+- Linux/WSL: `curl` y `unzip` o `python3`.
+- macOS: Homebrew recomendado si falta Node.js.
+- Opcional en Linux: `libsecret-1-dev` o equivalente si quieres usar Gnome Keyring con `keytar`; si no esta disponible, puedes usar variables en `.env`.
 
 ## Instalacion rapida en Windows
 
-Ejecuta este comando en PowerShell:
+Ejecuta en PowerShell:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/wilkinbarban/AI-Workspace-Manager/main/install.ps1 | iex"
@@ -75,32 +65,63 @@ El instalador:
 
 - valida Node.js y npm;
 - intenta instalar Node.js con `winget` si falta;
-- descarga el proyecto desde la rama `main` como ZIP;
-- elige una ruta de instalacion segura, evitando Escritorio sincronizado con OneDrive;
-- crea backup si ya existe una instalacion previa;
+- descarga el proyecto desde la rama `main`;
+- evita instalar en Escritorio sincronizado con OneDrive;
+- crea backup si existe una instalacion previa;
 - crea `.env` desde `.env.example` si no existe;
-- instala dependencias con `npm ci` cuando hay `package-lock.json`, o `npm install` como fallback;
-- valida y repara Electron con `npm run electron:repair` si detecta una instalacion incompleta;
-- genera el cliente Prisma;
-- aplica el esquema SQLite local con `npm run db:push`;
-- inicia la app con `npm run dev`.
+- instala dependencias con `npm ci` o `npm install`;
+- valida y repara Electron;
+- ejecuta `npm run prisma:generate` y `npm run db:push`;
+- inicia la app con `npm run dev`;
+- guarda la salida detallada en `install.log`.
 
-La consola del instalador muestra solo el avance principal, un indicador animado durante tareas largas y errores accionables. La salida completa de `npm`, Prisma, Electron y otros comandos se guarda en:
+## Instalacion rapida en Linux, WSL y macOS
 
-```text
-<carpeta-del-proyecto>\install.log
+Ejecuta en una terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/wilkinbarban/AI-Workspace-Manager/main/install.sh | bash
 ```
 
-Si ocurre un fallo antes de crear la carpeta final del proyecto, el instalador mostrara la ruta del log temporal en la consola.
+El instalador:
 
-La ruta por defecto es:
+- detecta Linux, WSL o macOS;
+- valida Node.js `>= 20` y npm `>= 10`;
+- instala Node.js automaticamente en distribuciones compatibles;
+- descarga el repositorio desde GitHub;
+- crea backup de una instalacion previa;
+- copia `.env.example` a `.env`;
+- instala dependencias;
+- prepara Prisma y SQLite;
+- en Linux/WSL omite Electron y arranca backend + frontend web;
+- en macOS repara Electron y arranca la app de escritorio;
+- guarda `install.log` en la carpeta instalada.
 
-- `%USERPROFILE%\AI-Workspace-Manager` si hay OneDrive activo;
-- `Desktop\AI-Workspace-Manager` si el Escritorio no esta sincronizado.
+En Linux/WSL abre:
 
-## Instalacion manual
+```text
+http://localhost:5173
+```
 
-Clona o descarga el repositorio y ejecuta:
+Logs generados:
+
+- `install.log`: instalacion y preparacion.
+- `server.log`: backend Node.js.
+- `web.log`: frontend Vite.
+
+Puedes cambiar la carpeta de instalacion:
+
+```bash
+TARGET_FOLDER="$HOME/AI-Workspace-Manager" curl -fsSL https://raw.githubusercontent.com/wilkinbarban/AI-Workspace-Manager/main/install.sh | bash
+```
+
+Puedes preparar sin iniciar automaticamente:
+
+```bash
+START_APP=false curl -fsSL https://raw.githubusercontent.com/wilkinbarban/AI-Workspace-Manager/main/install.sh | bash
+```
+
+## Instalacion manual en Windows/macOS
 
 ```powershell
 npm install
@@ -111,28 +132,46 @@ npm run db:push
 npm run dev
 ```
 
-`npm install` ejecuta tambien `postinstall`, que valida y repara Electron automaticamente. El comando `npm run electron:repair` se deja en el flujo manual porque es idempotente y evita el error `Electron uninstall` cuando el instalador oficial de Electron no crea `path.txt` o `dist\electron.exe` en Windows.
+## Ejecucion manual en Linux/WSL
 
-```powershell
-npm run electron:repair
+Linux y WSL usan el modo web headless como ruta oficial.
+
+Terminal 1:
+
+```bash
+ELECTRON_SKIP_BINARY_DOWNLOAD=1 AIWM_SKIP_ELECTRON_REPAIR=1 AIWM_HEADLESS_WEB=1 npm install
+cp .env.example .env
+npm run prisma:generate
+npm run db:push
+npm run web:server
 ```
 
-Para equipos Windows de usuario final, el flujo recomendado sigue siendo `install.ps1`, porque ademas crea backup de instalaciones previas, guarda `install.log`, prepara `.env`, ejecuta Prisma y arranca la aplicacion con validaciones previas.
+Terminal 2:
+
+```bash
+npm run web:dev -- --host 0.0.0.0 --port 5173
+```
+
+Luego abre:
+
+```text
+http://localhost:5173
+```
 
 ## Configuracion de IA
 
-La primera vez que abras la app, configura al menos un proveedor IA desde la pantalla inicial o desde Ajustes.
+La primera vez que abras la app, configura al menos un proveedor IA desde la pantalla inicial o desde ajustes.
 
 Datos habituales:
 
 - nombre visible del proveedor;
 - tipo de proveedor;
-- Base URL, normalmente precargada por el manifest;
+- Base URL;
 - modelo;
 - API key;
 - limite mensual opcional de tokens.
 
-Tambien puedes usar variables de entorno en `.env`. Este modo se recomienda para CI, automatizaciones o desarrollo sin UI:
+Tambien puedes usar variables de entorno en `.env`:
 
 ```env
 DEEPSEEK_API_KEY=""
@@ -142,7 +181,7 @@ GEMINI_API_KEY=""
 OPENROUTER_API_KEY=""
 ```
 
-La base de datos local se configura con:
+Base SQLite local:
 
 ```env
 DATABASE_URL="file:../../../.data/ai-workspace-manager.db"
@@ -152,9 +191,12 @@ DATABASE_URL="file:../../../.data/ai-workspace-manager.db"
 
 | Comando | Uso |
 | --- | --- |
-| `npm run dev` | Inicia la aplicacion Electron en modo desarrollo. |
-| `npm run web:dev` | Inicia el renderer como app web con Vite. |
-| `npm run web:build` | Compila el build web del renderer. |
+| `npm run dev` | Inicia la aplicacion Electron en modo desarrollo para Windows/macOS. |
+| `npm run web:dev` | Inicia el frontend web con Vite en el puerto 5173. |
+| `npm run web:server` | Inicia el backend Node.js con `tsx` en el puerto 3000. |
+| `npm run web:build` | Compila frontend web y servidor backend. |
+| `npm run web:build:server` | Compila solo el servidor backend hacia `out/server/index.js`. |
+| `npm run web:start` | Inicia el servidor compilado y sirve la UI desde `out/web`. |
 | `npm run build` | Ejecuta typecheck y compila la app Electron. |
 | `npm run preview` | Previsualiza el build de Electron. |
 | `npm run typecheck` | Verifica tipos TypeScript sin emitir archivos. |
@@ -169,29 +211,29 @@ DATABASE_URL="file:../../../.data/ai-workspace-manager.db"
 
 ## Arquitectura
 
-El proyecto esta dividido por responsabilidades:
-
-- `src/main`: proceso principal de Electron, IPC, menus, preload y servicios de aplicacion.
-- `src/renderer`: interfaz React, estilos, componentes, hooks y cliente de API.
-- `src/core`: logica de dominio, scanner de workspaces, detectores, reportes, agentes, skills y proveedores IA.
+- `src/main`: proceso principal de Electron, IPC, preload y servicios de aplicacion compartidos.
+- `src/server`: servidor Node.js headless para Linux/WSL con HTTP y WebSocket.
+- `src/renderer`: interfaz React, estilos, componentes, hooks y cliente API por IPC o WebSocket.
+- `src/core`: logica de dominio, scanner, agentes, skills y proveedores IA.
 - `src/database`: cliente Prisma, schema, migraciones y mappers.
-- `src/shared`: tipos, esquemas, constantes IPC y errores compartidos entre main y renderer.
+- `src/shared`: tipos, esquemas, constantes IPC y errores compartidos.
 - `tests`: pruebas unitarias con Vitest.
 
-La comunicacion entre renderer y backend ocurre por IPC a traves de `preload`, evitando acceso directo del frontend a APIs privilegiadas de Node.
+En Electron, el renderer usa `window.api` expuesto por preload. En navegador, el renderer usa `webSocketApi`, que envia mensajes correlacionados al servidor local por `/ws`.
 
 ## Datos locales y seguridad
 
-- Los proyectos, scans, tareas, memoria, reportes y logs se almacenan en SQLite.
-- Las API keys guardadas desde la UI usan el almacen seguro del sistema mediante `keytar` cuando esta disponible.
-- El archivo `.env` esta pensado para valores locales y no debe subirse al repositorio.
-- El scanner evita seguir symlinks y excluye carpetas generadas o muy pesadas para reducir ruido y riesgo.
+- Los proyectos, scans, tareas, memoria, reportes y consumo IA se almacenan en SQLite.
+- Las API keys guardadas desde la UI usan `keytar` cuando esta disponible.
+- `.env` es local y no debe subirse al repositorio.
+- El scanner no sigue symlinks y excluye carpetas generadas o pesadas.
+- El servidor web escucha en `127.0.0.1` por defecto y acepta origenes locales.
 
 ## Troubleshooting
 
 ### PowerShell no permite ejecutar el instalador
 
-Usa el comando recomendado con `-ExecutionPolicy Bypass` para esa sesion:
+Usa el comando recomendado con `-ExecutionPolicy Bypass`:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/wilkinbarban/AI-Workspace-Manager/main/install.ps1 | iex"
@@ -201,45 +243,23 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubus
 
 Instala Node.js manualmente desde `https://nodejs.org`, abre una nueva terminal y vuelve a ejecutar el instalador.
 
-### Node.js o npm no aparecen despues de instalar
+### Linux/WSL no abre el navegador
 
-Cierra y abre PowerShell. El instalador intenta refrescar `PATH`, pero algunos entornos requieren una terminal nueva.
+Abre manualmente:
 
-### Error con Electron
+```text
+http://localhost:5173
+```
 
-Si aparece `Electron uninstall`, significa que el paquete `electron` quedo incompleto dentro de `node_modules`. Normalmente faltan `node_modules\electron\path.txt`, `node_modules\electron\dist\version` o `node_modules\electron\dist\electron.exe`.
+Revisa `server.log` y `web.log` dentro de la carpeta instalada.
 
-Ejecuta:
+### Error con Electron en Windows/macOS
+
+Si aparece `Electron uninstall`, ejecuta:
 
 ```powershell
 npm run electron:repair
-```
-
-Luego intenta de nuevo:
-
-```powershell
 npm run dev
 ```
 
-Cuando el problema ocurre durante la instalacion de un clic, revisa `install.log` dentro de la carpeta instalada. El instalador valida `node_modules/electron/path.txt`, `node_modules/electron/dist/version` y `node_modules/electron/dist/electron.exe` antes de iniciar la app. Si la reparacion normal no deja Electron listo, el instalador extrae manualmente el ZIP oficial de Electron desde la cache local o lo descarga desde GitHub Releases.
-
-### Error con Prisma o SQLite
-
-Verifica que existe `.env` y que contiene `DATABASE_URL`. Despues ejecuta:
-
-```powershell
-npm run prisma:generate
-npm run db:push
-```
-
-### Ya existe una instalacion previa
-
-El instalador seguro no borra tu carpeta anterior sin respaldo. Si encuentra una instalacion existente, la mueve a una carpeta con sufijo `.backup-YYYYMMDD-HHMMSS` antes de instalar una copia nueva.
-
-### OneDrive bloquea archivos
-
-Si el Escritorio esta sincronizado con OneDrive, el instalador usa `%USERPROFILE%\AI-Workspace-Manager` para evitar bloqueos, latencia de sincronizacion y errores de permisos.
-
-## Licencia
-
-Este proyecto se distribuye bajo licencia MIT. Consulta [LICENSE](LICENSE) para mas informacion.
+En Linux/WSL este flujo no aplica porque el modo oficial es web headless.

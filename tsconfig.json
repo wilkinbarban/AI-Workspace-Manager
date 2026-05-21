@@ -45,6 +45,7 @@
     "src",
     "tests",
     "electron.vite.config.ts",
+    "vite.server.config.ts",
     "vite.web.config.ts",
     "vitest.config.ts",
     "eslint.config.js"
