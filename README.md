@@ -230,7 +230,7 @@ Luego abre:
 http://localhost:5173
 ```
 
-No abras `http://localhost:3000` esperando ver la interfaz durante desarrollo. Ese puerto es el backend API/WebSocket. Solo sirve la UI directamente si antes ejecutaste `npm run web:build` y luego `npm run web:start`.
+En `http://localhost:3000` esta la interfaz durante desarrollo. Ese puerto es el backend API/WebSocket. Solo sirve la UI directamente si antes se ejecuta  `npm run web:build` y luego `npm run web:start`.
 
 ## Configuracion de IA
 
