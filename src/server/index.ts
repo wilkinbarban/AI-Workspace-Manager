@@ -190,8 +190,7 @@ function serveStaticFile(reqUrl: string, res: NodeServerResponse): void {
   }
 
   if (!fs.existsSync(filePath)) {
-    res.writeHead(404, { 'Content-Type': 'text/plain' })
-    res.end('UI web no compilada. Ejecuta npm run web:build o usa npm run web:dev.')
+    sendMissingWebUiResponse(res)
     return
   }
 
@@ -206,6 +205,32 @@ function serveStaticFile(reqUrl: string, res: NodeServerResponse): void {
     res.writeHead(200, { 'Content-Type': contentType })
     res.end(content)
   })
+}
+
+function sendMissingWebUiResponse(res: NodeServerResponse): void {
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+  res.end(`<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <title>AI Workspace Manager backend</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 760px; margin: 64px auto; padding: 0 24px; line-height: 1.55; color: #182033; }
+      code, pre { background: #f3f4f6; border-radius: 6px; padding: 2px 6px; }
+      pre { padding: 14px; overflow: auto; }
+    </style>
+  </head>
+  <body>
+    <h1>Backend activo</h1>
+    <p>Este puerto corresponde al backend local de AI Workspace Manager. En modo desarrollo para Linux/WSL la interfaz se abre en:</p>
+    <p><strong><a href="http://localhost:5173">http://localhost:5173</a></strong></p>
+    <p>Para levantar backend y frontend juntos ejecuta:</p>
+    <pre>npm run web:dev:all</pre>
+    <p>Para usar este mismo puerto en modo produccion, primero compila la UI:</p>
+    <pre>npm run web:build
+npm run web:start</pre>
+  </body>
+</html>`)
 }
 
 function applyCorsHeaders(req: IncomingMessage, res: NodeServerResponse): void {

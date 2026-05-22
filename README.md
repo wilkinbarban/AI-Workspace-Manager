@@ -190,7 +190,25 @@ npm run dev
 
 ## Ejecucion manual en Linux/WSL
 
-Terminal 1:
+Opcion recomendada en una sola terminal:
+
+```bash
+ELECTRON_SKIP_BINARY_DOWNLOAD=1 AIWM_SKIP_ELECTRON_REPAIR=1 AIWM_HEADLESS_WEB=1 npm install
+cp .env.example .env
+npm run prisma:generate
+npm run db:push
+npm run web:dev:all
+```
+
+Luego abre:
+
+```text
+http://localhost:5173
+```
+
+Opcion alternativa en dos terminales:
+
+Terminal 1, backend:
 
 ```bash
 ELECTRON_SKIP_BINARY_DOWNLOAD=1 AIWM_SKIP_ELECTRON_REPAIR=1 AIWM_HEADLESS_WEB=1 npm install
@@ -200,7 +218,7 @@ npm run db:push
 npm run web:server
 ```
 
-Terminal 2:
+Terminal 2, frontend:
 
 ```bash
 npm run web:dev -- --host 0.0.0.0 --port 5173
@@ -211,6 +229,8 @@ Luego abre:
 ```text
 http://localhost:5173
 ```
+
+No abras `http://localhost:3000` esperando ver la interfaz durante desarrollo. Ese puerto es el backend API/WebSocket. Solo sirve la UI directamente si antes ejecutaste `npm run web:build` y luego `npm run web:start`.
 
 ## Configuracion de IA
 
@@ -247,6 +267,7 @@ DATABASE_URL="file:../../../.data/ai-workspace-manager.db"
 | --- | --- |
 | `npm run dev` | Inicia Electron en modo desarrollo para Windows/macOS. |
 | `npm run web:dev` | Inicia el frontend web con Vite en el puerto 5173. |
+| `npm run web:dev:all` | Inicia backend y frontend juntos para Linux/WSL en modo desarrollo. |
 | `npm run web:server` | Inicia el backend Node.js con `tsx` en el puerto 3000. |
 | `npm run web:build` | Compila frontend web y servidor backend. |
 | `npm run web:build:server` | Compila solo el servidor backend hacia `out/server/index.js`. |
