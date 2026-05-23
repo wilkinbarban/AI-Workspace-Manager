@@ -23,6 +23,11 @@ export function normalizeKeytarModule(importedModule: unknown): KeytarModule | n
 
 /** Adaptador tolerante sobre keytar: si no esta instalado, permite fallback por .env. */
 export class SecretStore {
+  /** Indica si el runtime puede escribir secretos en el almacen seguro nativo. */
+  async isAvailable(): Promise<boolean> {
+    return Boolean(await this.loadKeytar())
+  }
+
   /** Recupera un secreto por cuenta o null cuando keytar no esta disponible. */
   async getSecret(account: string): Promise<string | null> {
     const keytar = await this.loadKeytar()

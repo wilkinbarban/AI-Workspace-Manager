@@ -5,6 +5,7 @@ import type {
   AIProviderManifest,
   AIProviderDto,
   AIProviderType,
+  AISetupState,
   AIUsageSummaryDto,
   AITaskType,
   MemoryEntryDto,
@@ -19,7 +20,7 @@ import type {
  */
 export interface AppApi {
   projects: {
-    openProject: () => Promise<ProjectDto | null>
+    openProject: (projectPath?: string) => Promise<ProjectDto | null>
     getProjects: () => Promise<ProjectDto[]>
     cleanInactiveProjects: (activeProjectId: string) => Promise<void>
   }
@@ -56,7 +57,7 @@ export interface AppApi {
     }) => Promise<AIProviderDto>
     listAIProviders: () => Promise<AIProviderDto[]>
     listAIProviderManifests: () => Promise<AIProviderManifest[]>
-    getAISetupState: () => Promise<{ hasConfiguredProvider: boolean; defaultProviderId: string | null }>
+    getAISetupState: () => Promise<AISetupState>
     testAIProviderConfig: (input: {
       name: string
       type: AIProviderType

@@ -58,13 +58,15 @@ La version actual del proyecto es `0.1.0` y la licencia es MIT.
 - Windows: PowerShell; opcionalmente `winget` para instalar Node.js automaticamente.
 - Linux/WSL: `curl` y `unzip` o `python3`.
 - macOS: Homebrew recomendado si falta Node.js.
-- Opcional: `keytar` para guardar API keys en el almacen seguro del sistema. Si no esta disponible, se puede usar `.env`.
+- Opcional: `keytar` para guardar API keys en el almacen seguro del sistema. Si no esta disponible, la aplicacion cambia a configuracion por `.env`.
 
 ## Modos de ejecucion
 
 ### Windows
 
 Windows usa la aplicacion Electron de escritorio. El instalador `install.ps1` descarga el proyecto desde `main`, prepara la carpeta local, instala dependencias, repara Electron si hace falta, configura Prisma/SQLite y ejecuta `npm run dev`.
+
+En este modo la interfaz se comunica con el proceso principal de Electron por IPC seguro (`window.api`). La configuracion de IA se gestiona desde el boton global **Configurar IA**. Si `keytar` esta disponible, las API keys se guardan en el almacen seguro del sistema operativo; si no esta disponible, la interfaz muestra el flujo alternativo por `.env`.
 
 ### Linux y WSL
 
@@ -73,6 +75,10 @@ Linux y WSL usan el modo web headless como ruta oficial. No se intenta arrancar 
 - backend Node.js en `http://localhost:3000`;
 - frontend Vite en `http://localhost:5173`;
 - WebSocket API local en `/ws`.
+
+En desarrollo se abre `http://localhost:5173`, que consume el backend local en `http://localhost:3000/ws`. En produccion, despues de `npm run web:build`, `npm run web:start` sirve la UI compilada y la API desde un solo puerto: `http://localhost:3000`.
+
+La configuracion de IA en Linux/WSL debe tratarse como headless: la API key puede probarse temporalmente desde la interfaz, pero para dejarla persistente se debe escribir en `.env` y reiniciar el servidor.
 
 El boton de anadir proyecto solicita una ruta absoluta, por ejemplo:
 
@@ -85,6 +91,8 @@ El boton de anadir proyecto solicita una ruta absoluta, por ejemplo:
 macOS usa Electron Desktop en modo desarrollo. `install.sh` detecta `Darwin`, valida Node/npm, instala dependencias, repara Electron, prepara Prisma/SQLite y arranca `npm run dev`.
 
 > Nota: el proyecto aun no genera instaladores `.app` o `.dmg`; el soporte macOS actual es para ejecucion de desarrollo con Electron.
+
+macOS comparte el mismo flujo de configuracion IA que Windows: boton **Configurar IA**, guardado con `keytar` si esta disponible y fallback por `.env` si el almacen seguro nativo no puede cargarse.
 
 ## Instalacion rapida en Windows
 
@@ -190,6 +198,8 @@ npm run dev
 
 ## Ejecucion manual en Linux/WSL
 
+### Desarrollo web en Linux/WSL
+
 Opcion recomendada en una sola terminal:
 
 ```bash
@@ -230,30 +240,131 @@ Luego abre:
 http://localhost:5173
 ```
 
+No abras `http://localhost:3000` esperando ver la interfaz durante desarrollo. En desarrollo ese puerto es solo backend API/WebSocket.
+
+### Produccion web local
+
+Para probar el modo web compilado en un solo puerto:
+
+```bash
+ELECTRON_SKIP_BINARY_DOWNLOAD=1 AIWM_SKIP_ELECTRON_REPAIR=1 AIWM_HEADLESS_WEB=1 npm install
+cp .env.example .env
+npm run prisma:generate
+npm run db:push
+npm run web:build
+npm run web:start
+```
+
+Luego abre:
+
+```text
+http://localhost:3000
+```
+
+En este modo `web:start` sirve la UI desde `out/web`, el backend desde `out/server/index.js` y el WebSocket en `ws://localhost:3000/ws`.
+
 ## Configuracion de IA
 
-La primera vez que abras la aplicacion, configura al menos un proveedor IA desde la pantalla inicial o desde ajustes.
+La aplicacion necesita al menos un proveedor IA activo para mostrar el dashboard completo. La configuracion puede hacerse desde la pantalla inicial o desde el boton global **Configurar IA** en la barra superior.
 
-Datos habituales:
+Proveedores disponibles:
 
-- nombre visible del proveedor;
-- tipo de proveedor;
+- OpenAI / GPT / Codex.
+- Anthropic Claude.
+- DeepSeek.
+- Google Gemini.
+- OpenRouter.
+
+Campos configurables:
+
+- proveedor;
 - Base URL;
 - modelo;
 - API key;
+- proveedor predeterminado;
+- estado habilitado;
 - limite mensual opcional de tokens.
 
-Tambien puedes usar variables de entorno en `.env`:
+### Escritorio Windows/macOS
+
+En Electron, **Configurar IA** permite guardar o actualizar proveedores desde la interfaz:
+
+1. Pulsa **Configurar IA**.
+2. Selecciona proveedor.
+3. Elige modelo y Base URL.
+4. Pega la API key.
+5. Usa **Probar conexion** para validar.
+6. Usa **Guardar proveedor** para persistir la configuracion.
+
+Cuando `keytar` esta disponible, la API key no se guarda en SQLite: se almacena en el almacen seguro del sistema operativo. En la base local solo queda un secreto enmascarado, por ejemplo `sk-****1234`.
+
+Si ya habia una clave guardada, el campo aparece como **Nueva API key (opcional)**. Puedes cambiar modelo/Base URL sin volver a pegar la clave; solo pega una nueva clave si quieres reemplazarla.
+
+### Web Linux/WSL/headless
+
+En modo web/headless no se debe asumir que existe un almacen seguro nativo. Por eso la UI cambia de comportamiento cuando `keytar` no esta disponible:
+
+- muestra el proveedor y sus modelos;
+- permite escribir una **API key temporal** para **Probar conexion**;
+- genera el bloque `.env` exacto que debes copiar;
+- no guarda la API key desde la UI;
+- requiere reiniciar el backend para que Node cargue los cambios del `.env`.
+
+Ejemplo para DeepSeek:
 
 ```env
-DEEPSEEK_API_KEY=""
-OPENAI_API_KEY=""
-ANTHROPIC_API_KEY=""
-GEMINI_API_KEY=""
-OPENROUTER_API_KEY=""
+DEEPSEEK_API_KEY="tu_api_key"
+DEEPSEEK_BASE_URL="https://api.deepseek.com"
+DEEPSEEK_MODEL="deepseek-v4-flash"
 ```
 
-Base SQLite local:
+Ejemplo para OpenAI:
+
+```env
+OPENAI_API_KEY="tu_api_key"
+OPENAI_BASE_URL="https://api.openai.com/v1"
+OPENAI_MODEL="gpt-4.1-mini"
+```
+
+Ejemplo para Anthropic:
+
+```env
+ANTHROPIC_API_KEY="tu_api_key"
+ANTHROPIC_BASE_URL="https://api.anthropic.com/v1"
+ANTHROPIC_MODEL="claude-sonnet-4-6"
+```
+
+Ejemplo para Gemini:
+
+```env
+GEMINI_API_KEY="tu_api_key"
+GEMINI_BASE_URL="https://generativelanguage.googleapis.com/v1beta"
+GEMINI_MODEL="gemini-2.5-flash"
+```
+
+Ejemplo para OpenRouter:
+
+```env
+OPENROUTER_API_KEY="tu_api_key"
+OPENROUTER_BASE_URL="https://openrouter.ai/api/v1"
+OPENROUTER_MODEL="openai/gpt-4.1-mini"
+```
+
+Despues de modificar `.env`, reinicia el modo web:
+
+```bash
+# Desarrollo
+npm run web:dev:all
+
+# Produccion local
+npm run web:start
+```
+
+Cuando una variable `.env` esta configurada, el proveedor aparece en la app como proveedor virtual, por ejemplo `DeepSeek (.env)`.
+
+### Base SQLite local
+
+La base de datos se define en `.env` con:
 
 ```env
 DATABASE_URL="file:../../../.data/ai-workspace-manager.db"
@@ -263,14 +374,14 @@ DATABASE_URL="file:../../../.data/ai-workspace-manager.db"
 
 | Comando | Uso |
 | --- | --- |
-| `npm run dev` | Inicia Electron en modo desarrollo para Windows/macOS. |
+| `npm run dev` | Inicia Electron en modo desarrollo para Windows/macOS. Usa `node --disable-warning=DEP0205` para ocultar el warning conocido de `module.register()` en Node moderno sin cambiar el comportamiento. |
 | `npm run web:dev` | Inicia el frontend web con Vite en el puerto 5173. |
 | `npm run web:dev:all` | Inicia backend y frontend juntos para Linux/WSL en modo desarrollo. |
 | `npm run web:server` | Inicia el backend Node.js con `tsx` en el puerto 3000. |
 | `npm run web:build` | Compila frontend web y servidor backend. |
 | `npm run web:build:server` | Compila solo el servidor backend hacia `out/server/index.js`. |
-| `npm run web:start` | Inicia el servidor compilado y sirve la UI desde `out/web`. |
-| `npm run build` | Ejecuta typecheck y compila la app Electron. |
+| `npm run web:start` | Inicia el servidor compilado y sirve UI, API y WebSocket desde `http://localhost:3000`. |
+| `npm run build` | Ejecuta typecheck y compila la app Electron. Tambien oculta `DEP0205` durante el build. |
 | `npm run preview` | Previsualiza el build de Electron. |
 | `npm run typecheck` | Verifica tipos TypeScript sin emitir archivos. |
 | `npm run lint` | Ejecuta ESLint con cero warnings permitidos. |
@@ -304,6 +415,9 @@ Comunicacion:
 
 - Los proyectos, scans, tareas, memoria, reportes y consumo IA se almacenan en SQLite.
 - Las API keys guardadas desde la UI usan `keytar` cuando esta disponible.
+- Si `keytar` no esta disponible, la UI no persiste secretos y muestra instrucciones `.env`.
+- Las API keys usadas en **API key temporal** solo sirven para probar conexion en esa sesion del formulario.
+- Los proveedores definidos por `.env` se exponen como proveedores virtuales con id interno `env:<proveedor>`.
 - `.env` es local y no debe subirse al repositorio.
 - El scanner no sigue symlinks y excluye carpetas generadas o pesadas.
 - Las skills del agente validan rutas para no escribir fuera del workspace activo.
@@ -333,6 +447,14 @@ http://localhost:5173
 
 Revisa `server.log` y `web.log` dentro de la carpeta instalada.
 
+Si ejecutaste `npm run web:build` seguido de `npm run web:start`, abre:
+
+```text
+http://localhost:3000
+```
+
+En desarrollo `5173` es el frontend Vite y `3000` es el backend. En produccion local `3000` sirve todo.
+
 ### Error con Electron en Windows/macOS
 
 Si aparece `Electron uninstall`, ejecuta:
@@ -346,7 +468,39 @@ En Linux/WSL este flujo no aplica porque el modo oficial es web headless.
 
 ### No se guardan API keys
 
-Si `keytar` no esta disponible en tu sistema, configura las claves en `.env` con las variables del proveedor correspondiente.
+Si `keytar` no esta disponible en tu sistema, el boton **Configurar IA** no intentara guardar la API key desde la UI. Veras un campo **API key temporal** para probar conexion y un bloque `.env` con las variables exactas. Copia esas variables en `.env`, reinicia el servidor y vuelve a abrir la app.
+
+Variables principales:
+
+```env
+DEEPSEEK_API_KEY="tu_api_key"
+OPENAI_API_KEY="tu_api_key"
+ANTHROPIC_API_KEY="tu_api_key"
+GEMINI_API_KEY="tu_api_key"
+OPENROUTER_API_KEY="tu_api_key"
+```
+
+### No aparece la pantalla de configuracion IA
+
+Si ya existe un proveedor activo, la app entra directo al dashboard. Usa el boton **Configurar IA** en la barra superior para cambiar modelo, Base URL o API key.
+
+Si solo ves la barra superior y no carga el formulario, comprueba que el backend web este activo:
+
+```bash
+curl http://localhost:3000/api/status
+```
+
+En desarrollo web, el frontend debe poder conectar con `ws://localhost:3000/ws`.
+
+### Warning `DEP0205` al iniciar Electron
+
+Node.js moderno puede mostrar:
+
+```text
+[DEP0205] DeprecationWarning: module.register() is deprecated.
+```
+
+El script `npm run dev` ya ejecuta `electron-vite` mediante `node --disable-warning=DEP0205`, igual que el build, para mantener limpia la consola. El warning venia del tooling de Vite/Electron, no del codigo de la aplicacion.
 
 ## Estado del soporte por plataforma
 

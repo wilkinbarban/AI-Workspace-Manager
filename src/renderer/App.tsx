@@ -19,6 +19,30 @@ import { useWorkspaceManager } from './hooks/useWorkspaceManager'
 export default function App() {
   /** Manager central con estado y acciones IPC del workspace. */
   const manager = useWorkspaceManager()
+  /** En modo web no existe window.api; la ruta se solicita con un modal propio. */
+  const isWebRuntime = typeof window !== 'undefined' && !window.api
+  /** Controla el modal de importacion manual usado por Linux/WSL en navegador. */
+  const [isProjectPathDialogOpen, setProjectPathDialogOpen] = useState(false)
+  /** Controla la configuracion global de proveedores IA desde cualquier vista. */
+  const [isAISettingsOpen, setAISettingsOpen] = useState(false)
+
+  /** Abre el flujo correcto segun el runtime activo: Electron o servidor web. */
+  function handleOpenProject() {
+    if (isWebRuntime) {
+      setProjectPathDialogOpen(true)
+      return
+    }
+
+    void manager.openProject()
+  }
+
+  /** Importa la ruta absoluta enviada desde el modal web y conserva el dialogo si falla. */
+  async function handleProjectPathSubmit(projectPath: string) {
+    const imported = await manager.openProject(projectPath)
+    if (imported) {
+      setProjectPathDialogOpen(false)
+    }
+  }
 
   return (
     <div className="app-shell flex h-screen flex-col overflow-hidden">
@@ -29,7 +53,10 @@ export default function App() {
             <div className="brand-subtitle">Centro de control de proyectos</div>
           </div>
           <div className="flex items-center gap-2">
-            <button className="btn-secondary" type="button" onClick={manager.openProject} disabled={manager.isBusy}>
+            <button className="btn-secondary" type="button" onClick={() => setAISettingsOpen(true)} disabled={manager.isBusy}>
+              Configurar IA
+            </button>
+            <button className="btn-secondary" type="button" onClick={handleOpenProject} disabled={manager.isBusy}>
               Abrir Proyecto
             </button>
             <button className="btn-primary" type="button" onClick={manager.cleanInactiveProjects} disabled={manager.isBusy || !manager.selectedProject}>
@@ -47,6 +74,7 @@ export default function App() {
             <AISetupGate
               manifests={manager.providerManifests}
               isBusy={manager.isBusy}
+              secretStoreAvailable={manager.secretStoreAvailable}
               onSaveProvider={manager.saveProvider}
               onTestProviderConfig={manager.testProviderConfig}
             />
@@ -64,6 +92,24 @@ export default function App() {
           )}
         </div>
       </main>
+
+      <ProjectPathDialog
+        isOpen={isProjectPathDialogOpen}
+        isBusy={manager.isBusy}
+        onClose={() => setProjectPathDialogOpen(false)}
+        onSubmit={handleProjectPathSubmit}
+      />
+
+      <AIProviderSettingsDialog
+        isOpen={isAISettingsOpen}
+        isBusy={manager.isBusy}
+        providers={manager.providers}
+        manifests={manager.providerManifests}
+        secretStoreAvailable={manager.secretStoreAvailable}
+        onClose={() => setAISettingsOpen(false)}
+        onSaveProvider={manager.saveProvider}
+        onTestProviderConfig={manager.testProviderConfig}
+      />
       
       <StatusBar error={manager.error} notice={manager.notice} />
     </div>
@@ -109,6 +155,7 @@ function ProjectHeader(props: {
 function AISetupGate(props: {
   manifests: AIProviderManifest[]
   isBusy: boolean
+  secretStoreAvailable: boolean
   onSaveProvider: (input: {
     name: string; type: AIProviderType; authType?: AIAuthType; baseUrl?: string
     model: string; apiKey?: string; monthlyTokenLimit?: number | null
@@ -131,6 +178,8 @@ function AISetupGate(props: {
   const [baseUrl, setBaseUrl] = useState(manifest?.defaultBaseUrl ?? '')
   /** Modelo seleccionado dentro de los modelos declarados por el manifest. */
   const [model, setModel] = useState(manifest?.defaultModel ?? '')
+  /** Determina si la UI puede persistir una API key desde este runtime. */
+  const canStoreApiKey = props.secretStoreAvailable || !manifest?.requiresApiKey
 
   useEffect(() => {
     if (!manifest) return
@@ -147,7 +196,9 @@ function AISetupGate(props: {
     setApiKey('')
   }
 
-  if (!manifest) return null
+  if (!manifest) {
+    return <AISetupLoading />
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] animate-fadeIn">
@@ -158,7 +209,9 @@ function AISetupGate(props: {
           <h2 className="display-md">Configura tu primera IA</h2>
           <p className="body-copy mt-2">
             Para acceder al dashboard necesitas conectar al menos un proveedor de IA.
-            Elige uno y pega tu API key — se guarda en el almacén seguro del sistema.
+            {props.secretStoreAvailable
+              ? ' Elige uno y pega tu API key; se guardará en el almacén seguro del sistema.'
+              : ' En este entorno no hay almacén seguro disponible, así que la configuración debe venir desde .env.'}
           </p>
         </div>
 
@@ -177,8 +230,8 @@ function AISetupGate(props: {
           ))}
         </div>
 
-        {/* Formulario minimo para guardar y validar credenciales. */}
-        <form
+        {canStoreApiKey ? (
+          <form
           className="panel space-y-3"
           onSubmit={(e) => {
             e.preventDefault()
@@ -210,13 +263,150 @@ function AISetupGate(props: {
               className="btn-primary flex-1" type="submit"
               disabled={props.isBusy || !model || (manifest.requiresApiKey && !apiKey.trim())}
             >
-              Guardar y continuar →
+              Guardar y continuar
             </button>
           </div>
-        </form>
+          </form>
+        ) : (
+          <EnvProviderSetup
+            manifest={manifest}
+            baseUrl={baseUrl}
+            model={model}
+            isBusy={props.isBusy}
+            onBaseUrlChange={setBaseUrl}
+            onModelChange={setModel}
+            onTestProviderConfig={props.onTestProviderConfig}
+          />
+        )}
       </div>
     </div>
   )
+}
+
+/** Estado visible mientras la API web entrega los manifests de proveedores IA. */
+function AISetupLoading() {
+  return (
+    <section className="panel mx-auto mt-10 flex min-h-[300px] max-w-xl items-center justify-center text-center">
+      <div>
+        <span className="timeline-pill timeline-thinking">Configuración IA</span>
+        <h2 className="display-md mt-4">Cargando proveedores</h2>
+        <p className="body-copy mt-2">
+          La interfaz está esperando los manifests del backend local. Si esta vista no avanza, revisa que el servidor web esté activo y que el WebSocket responda en /ws.
+        </p>
+      </div>
+    </section>
+  )
+}
+
+/** Guia de configuracion .env para runtimes web/headless sin keytar operativo. */
+function EnvProviderSetup(props: {
+  manifest: AIProviderManifest
+  baseUrl: string
+  model: string
+  isBusy: boolean
+  onBaseUrlChange: (value: string) => void
+  onModelChange: (value: string) => void
+  onTestProviderConfig: (input: {
+    name: string; type: AIProviderType; authType?: AIAuthType; baseUrl?: string
+    model: string; apiKey?: string
+  }) => void
+}) {
+  /** API key temporal para probar la conexion; no se guarda desde modo web sin keytar. */
+  const [apiKey, setApiKey] = useState('')
+  /** Prefijo normalizado usado por el backend para leer variables del proveedor. */
+  const envPrefix = envPrefixForProvider(props.manifest.type)
+  /** Variable exacta que AIProviderService.getEnvProvider resolvera al iniciar el servidor. */
+  const apiKeyVariable = `${envPrefix}_API_KEY`
+  /** Variable opcional para sobrescribir la URL base declarada por el manifest. */
+  const baseUrlVariable = `${envPrefix}_BASE_URL`
+  /** Variable opcional para sobrescribir el modelo declarado por el manifest. */
+  const modelVariable = `${envPrefix}_MODEL`
+  /** Bloque listo para copiar en .env sin exponer claves reales en la UI. */
+  const envSnippet = [
+    `${apiKeyVariable}="tu_api_key"`,
+    props.baseUrl ? `${baseUrlVariable}="${props.baseUrl}"` : `# ${baseUrlVariable}=""`,
+    `${modelVariable}="${props.model}"`
+  ].join('\n')
+
+  return (
+    <div className="panel space-y-4">
+      <div>
+        <div className="section-title">{props.manifest.name}</div>
+        <p className="section-kicker">{props.manifest.description}</p>
+      </div>
+
+      <div className="grid gap-3 rounded-[8px] border border-[var(--color-hairline)] bg-[var(--color-canvas-soft)] p-4">
+        <label className="grid gap-2">
+          <span className="section-kicker">API key temporal</span>
+          <input
+            className="input"
+            type="password"
+            value={apiKey}
+            onChange={e => setApiKey(e.target.value)}
+            placeholder={`Valor para ${apiKeyVariable}`}
+            autoComplete="off"
+          />
+        </label>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="body-copy text-[12px]">
+            Se usa solo para probar la conexión. Para que quede activa, pega esa misma clave en .env y reinicia el servidor.
+          </p>
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={props.isBusy || !props.model || (props.manifest.requiresApiKey && !apiKey.trim())}
+            onClick={() => props.onTestProviderConfig({
+              name: props.manifest.name,
+              type: props.manifest.type,
+              authType: props.manifest.authType,
+              baseUrl: props.baseUrl,
+              model: props.model,
+              apiKey
+            })}
+          >
+            Probar conexión
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-3 rounded-[8px] border border-[var(--color-hairline)] bg-[var(--color-canvas-soft)] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="section-kicker">Configuración requerida en .env</span>
+          <span className="badge">Sin almacén seguro</span>
+        </div>
+        <pre className="overflow-x-auto rounded-[8px] border border-[var(--color-hairline)] bg-white p-3 text-[12px] leading-6 text-[var(--color-ink)]">
+          <code>{envSnippet}</code>
+        </pre>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="grid gap-2">
+          <span className="section-kicker">Base URL</span>
+          <input className="input" value={props.baseUrl ?? ''} onChange={e => props.onBaseUrlChange(e.target.value)} placeholder="Base URL" />
+        </label>
+        <label className="grid gap-2">
+          <span className="section-kicker">Modelo</span>
+          <select className="input" value={props.model} onChange={e => props.onModelChange(e.target.value)}>
+            {props.manifest.availableModels.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </label>
+      </div>
+
+      <div className="rounded-[8px] border border-[var(--color-hairline)] bg-[var(--color-canvas-soft)] p-4">
+        <div className="section-kicker">Flujo recomendado</div>
+        <ol className="body-copy mt-2 list-decimal space-y-1 pl-5 text-[13px]">
+          <li>Edita el archivo .env en la raíz del proyecto.</li>
+          <li>Pega las variables anteriores con tu clave real.</li>
+          <li>Reinicia el servidor web para que Node cargue los nuevos valores.</li>
+        </ol>
+      </div>
+    </div>
+  )
+}
+
+/** Reproduce la misma convencion de variables de entorno usada por el backend. */
+function envPrefixForProvider(type: AIProviderType): string {
+  return type.toUpperCase().replace(/[^A-Z0-9]/g, '_')
 }
 
 /** Monitor del agente con zona de arrastre para ejecutar tareas existentes. */
@@ -1440,6 +1630,370 @@ function Fact({ label, value }: { label: string; value: string }) {
       <div className="fact-value mt-1 truncate" title={value}>
         {value}
       </div>
+    </div>
+  )
+}
+
+/** Modal permanente para configurar proveedores IA aunque el dashboard ya este activo. */
+function AIProviderSettingsDialog(props: {
+  isOpen: boolean
+  isBusy: boolean
+  providers: AIProviderDto[]
+  manifests: AIProviderManifest[]
+  secretStoreAvailable: boolean
+  onClose: () => void
+  onSaveProvider: (input: {
+    id?: string
+    name: string; type: AIProviderType; authType?: AIAuthType; baseUrl?: string
+    model: string; apiKey?: string; monthlyTokenLimit?: number | null
+    isDefault?: boolean; enabled?: boolean
+  }) => void
+  onTestProviderConfig: (input: {
+    name: string; type: AIProviderType; authType?: AIAuthType; baseUrl?: string
+    model: string; apiKey?: string
+  }) => void
+}) {
+  /** Proveedores mostrados en el orden funcional del producto. */
+  const recommended = props.manifests.filter(m => ['deepseek', 'openai', 'anthropic', 'gemini', 'openrouter'].includes(m.type))
+  /** Tipo actualmente editado dentro del modal. */
+  const [type, setType] = useState<AIProviderType>(recommended[0]?.type ?? 'deepseek')
+  /** API key nueva; se mantiene vacia cuando el usuario quiere conservar la existente. */
+  const [apiKey, setApiKey] = useState('')
+  /** URL base editable para endpoints compatibles. */
+  const [baseUrl, setBaseUrl] = useState('')
+  /** Modelo activo que se guardara o se copiara al .env. */
+  const [model, setModel] = useState('')
+
+  /** Manifest y proveedor persistido asociados al tipo seleccionado. */
+  const manifest = props.manifests.find(m => m.type === type) ?? recommended[0]
+  const configuredProvider = props.providers.find(provider => provider.type === type) ?? null
+  const canStoreApiKey = props.secretStoreAvailable || !manifest?.requiresApiKey
+  const canReuseExistingSecret = Boolean(configuredProvider?.maskedSecret && !configuredProvider.id.startsWith('env:'))
+  const isSaveDisabled = props.isBusy || !model || (Boolean(manifest?.requiresApiKey) && !apiKey.trim() && !canReuseExistingSecret)
+
+  useEffect(() => {
+    if (!props.isOpen) {
+      return
+    }
+
+    const firstRecommended = props.manifests.find(m => ['deepseek', 'openai', 'anthropic', 'gemini', 'openrouter'].includes(m.type))
+    const initialType = props.providers[0]?.type ?? firstRecommended?.type ?? 'deepseek'
+    setType(initialType)
+  }, [props.isOpen, props.providers, props.manifests])
+
+  useEffect(() => {
+    if (!manifest) {
+      return
+    }
+
+    const provider = props.providers.find(item => item.type === manifest.type)
+    setBaseUrl(provider?.baseUrl ?? manifest.defaultBaseUrl ?? '')
+    setModel(provider?.model ?? manifest.defaultModel)
+    setApiKey('')
+  }, [manifest, props.providers])
+
+  if (!props.isOpen) {
+    return null
+  }
+
+  if (!manifest) {
+    return (
+      <ModalShell title="Configurar IA" onClose={props.onClose} isBusy={props.isBusy}>
+        <AISetupLoading />
+      </ModalShell>
+    )
+  }
+
+  function choose(nextType: AIProviderType) {
+    setType(nextType)
+  }
+
+  function handleSave(event: FormEvent) {
+    event.preventDefault()
+    if (isSaveDisabled || !manifest) {
+      return
+    }
+
+    void props.onSaveProvider({
+      id: configuredProvider && !configuredProvider.id.startsWith('env:') ? configuredProvider.id : undefined,
+      name: manifest.name,
+      type: manifest.type,
+      authType: manifest.authType,
+      baseUrl,
+      model,
+      apiKey: apiKey.trim() || undefined,
+      isDefault: true,
+      enabled: true
+    })
+  }
+
+  return (
+    <ModalShell title="Configurar IA" onClose={props.onClose} isBusy={props.isBusy}>
+      <div className="space-y-5">
+        <div>
+          <div className="section-kicker">Proveedores disponibles</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {recommended.map(item => {
+              const provider = props.providers.find(existing => existing.type === item.type)
+              return (
+                <button
+                  key={item.type}
+                  type="button"
+                  onClick={() => choose(item.type)}
+                  className={'badge cursor-pointer transition-all ' + (item.type === type ? 'bg-[var(--color-primary)] text-white' : '')}
+                >
+                  {item.name}{provider ? ' · configurado' : ''}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {canStoreApiKey ? (
+          <form className="grid gap-4" onSubmit={handleSave}>
+            <div className="grid gap-3 rounded-[8px] border border-[var(--color-hairline)] bg-[var(--color-canvas-soft)] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="section-title">{manifest.name}</div>
+                  <p className="section-kicker mt-1">{manifest.description}</p>
+                </div>
+                {configuredProvider?.maskedSecret && (
+                  <span className="badge">Key {configuredProvider.maskedSecret}</span>
+                )}
+              </div>
+              <input className="input" value={baseUrl} onChange={event => setBaseUrl(event.target.value)} placeholder="Base URL" />
+              <select className="input" value={model} onChange={event => setModel(event.target.value)}>
+                {manifest.availableModels.map(item => <option key={item} value={item}>{item}</option>)}
+              </select>
+              {manifest.requiresApiKey && (
+                <input
+                  className="input"
+                  type="password"
+                  value={apiKey}
+                  onChange={event => setApiKey(event.target.value)}
+                  placeholder={canReuseExistingSecret ? 'Nueva API key (opcional)' : 'API Key'}
+                  autoComplete="off"
+                />
+              )}
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={props.isBusy || !model || (manifest.requiresApiKey && !apiKey.trim())}
+                onClick={() => props.onTestProviderConfig({ name: manifest.name, type: manifest.type, authType: manifest.authType, baseUrl, model, apiKey })}
+              >
+                Probar conexión
+              </button>
+              <button className="btn-primary" type="submit" disabled={isSaveDisabled}>
+                Guardar proveedor
+              </button>
+            </div>
+          </form>
+        ) : (
+          <EnvProviderSetup
+            manifest={manifest}
+            baseUrl={baseUrl}
+            model={model}
+            isBusy={props.isBusy}
+            onBaseUrlChange={setBaseUrl}
+            onModelChange={setModel}
+            onTestProviderConfig={props.onTestProviderConfig}
+          />
+        )}
+      </div>
+    </ModalShell>
+  )
+}
+
+/** Estructura modal comun para dialogs del dashboard. */
+function ModalShell(props: {
+  title: string
+  isBusy: boolean
+  onClose: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,23,42,0.38)] px-4 py-6 backdrop-blur-sm"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !props.isBusy) {
+          props.onClose()
+        }
+      }}
+    >
+      <section
+        className="panel max-h-[88vh] w-full max-w-2xl overflow-y-auto border border-[var(--color-hairline-strong)] shadow-[0_24px_80px_rgba(15,23,42,0.22)]"
+        role="dialog"
+        aria-modal="true"
+        aria-label={props.title}
+      >
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <div className="section-kicker">AI Workspace Manager</div>
+            <h2 className="display-sm mt-1">{props.title}</h2>
+          </div>
+          <button
+            className="btn-secondary flex h-8 w-8 items-center justify-center p-0"
+            type="button"
+            onClick={props.onClose}
+            disabled={props.isBusy}
+            aria-label="Cerrar"
+            title="Cerrar"
+          >
+            ×
+          </button>
+        </div>
+        {props.children}
+      </section>
+    </div>
+  )
+}
+
+/** Modal web para importar proyectos por ruta absoluta sin depender del prompt del navegador. */
+function ProjectPathDialog(props: {
+  isOpen: boolean
+  isBusy: boolean
+  onClose: () => void
+  onSubmit: (projectPath: string) => Promise<void>
+}) {
+  const { isOpen, isBusy, onClose, onSubmit } = props
+  /** Ruta absoluta escrita por el usuario en entornos Linux/WSL o servidor web. */
+  const [projectPath, setProjectPath] = useState('')
+  /** Permite mostrar validacion solo despues del primer intento de envio. */
+  const [hasTriedSubmit, setHasTriedSubmit] = useState(false)
+  /** Referencia para enfocar automaticamente el campo principal al abrir el modal. */
+  const inputRef = useRef<HTMLInputElement>(null)
+  /** Ruta normalizada antes de enviarla al backend WebSocket. */
+  const normalizedPath = projectPath.trim()
+  /** Valida rutas absolutas Unix/WSL y Windows para mantener compatibilidad cruzada. */
+  const hasAbsolutePath = normalizedPath.startsWith('/') || /^[A-Za-z]:[\\/]/.test(normalizedPath)
+  /** Mensaje accionable de validacion mostrado en el formulario. */
+  const validationMessage = !normalizedPath
+    ? 'Escribe la ruta absoluta del proyecto.'
+    : !hasAbsolutePath
+      ? 'Usa una ruta absoluta, por ejemplo /home/usuario/proyecto.'
+      : null
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    setProjectPath('')
+    setHasTriedSubmit(false)
+    window.setTimeout(() => inputRef.current?.focus(), 50)
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && !isBusy) {
+        onClose()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isBusy, isOpen, onClose])
+
+  if (!isOpen) {
+    return null
+  }
+
+  /** Envia al backend solo cuando la ruta tiene forma absoluta. */
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault()
+    setHasTriedSubmit(true)
+
+    if (validationMessage || isBusy) {
+      return
+    }
+
+    await onSubmit(normalizedPath)
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,23,42,0.38)] px-4 py-6 backdrop-blur-sm"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !isBusy) {
+          onClose()
+        }
+      }}
+    >
+      <form
+        className="panel w-full max-w-xl space-y-5 border border-[var(--color-hairline-strong)] shadow-[0_24px_80px_rgba(15,23,42,0.22)]"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="project-path-title"
+        onSubmit={handleSubmit}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="section-kicker">Modo web / Linux / WSL</div>
+            <h2 id="project-path-title" className="display-sm mt-1">Añadir proyecto</h2>
+            <p className="body-copy mt-2">
+              Indica la ruta absoluta del directorio local. El servidor la validará, la registrará y lanzará el primer análisis.
+            </p>
+          </div>
+          <button
+            className="btn-secondary flex h-8 w-8 items-center justify-center p-0"
+            type="button"
+            onClick={onClose}
+            disabled={isBusy}
+            aria-label="Cerrar"
+            title="Cerrar"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="grid gap-3 rounded-[8px] border border-[var(--color-hairline)] bg-[var(--color-canvas-soft)] p-4">
+          <label className="section-kicker" htmlFor="project-path-input">Ruta absoluta del proyecto</label>
+          <input
+            ref={inputRef}
+            id="project-path-input"
+            className="input"
+            value={projectPath}
+            onChange={(event) => setProjectPath(event.target.value)}
+            placeholder="/home/usuario/workspace/mi-proyecto"
+            spellCheck={false}
+            autoComplete="off"
+            aria-invalid={Boolean(hasTriedSubmit && validationMessage)}
+            aria-describedby="project-path-help"
+          />
+          <div id="project-path-help" className="grid gap-2 text-[12px] text-[var(--color-muted)]">
+            <span className="break-all">
+              {normalizedPath || 'Ejemplo: /home/usuario/workspace/mi-proyecto'}
+            </span>
+            {hasTriedSubmit && validationMessage && (
+              <span className="font-semibold text-[var(--color-semantic-error)]">{validationMessage}</span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <span className="badge">Backend local</span>
+          <span className="badge">Ruta validada</span>
+          <span className="badge">Análisis automático</span>
+        </div>
+
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button className="btn-secondary" type="button" onClick={onClose} disabled={isBusy}>
+            Cancelar
+          </button>
+          <button className="btn-primary" type="submit" disabled={isBusy || Boolean(validationMessage)}>
+            {isBusy ? 'Importando...' : 'Importar y analizar'}
+          </button>
+        </div>
+      </form>
     </div>
   )
 }

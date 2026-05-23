@@ -2,7 +2,7 @@ import { prisma, stringifyJson } from '@database/client'
 import { toAIProviderDto } from '@database/mappers'
 import { maskSecret, envKeyForProvider } from '@core/ai/core/ai-auth.service'
 import { aiProviderRegistry } from '@core/ai/core/ai-provider-registry'
-import type { AIAuthType, AIProviderDto, AIProviderManifest, AIProviderType, AITaskType } from '@shared/types/workspace'
+import { AI_PROVIDER_TYPES, type AIAuthType, type AIProviderDto, type AIProviderManifest, type AIProviderType, type AISetupState, type AITaskType } from '@shared/types/workspace'
 import { SecretStore } from '@main/security/secret-store'
 import { randomUUID } from 'node:crypto'
 
@@ -25,7 +25,14 @@ export class AIProviderService {
       orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }]
     })
 
-    return providers.map(toAIProviderDto)
+    const persistedProviders = providers.map(toAIProviderDto)
+    const persistedTypes = new Set(persistedProviders.map((provider) => provider.type))
+    const envProviders = AI_PROVIDER_TYPES
+      .filter((type) => !persistedTypes.has(type))
+      .map((type) => this.getEnvProvider(type))
+      .filter((provider): provider is AIProviderDto => Boolean(provider))
+
+    return [...persistedProviders, ...envProviders]
   }
 
   /** Crea o actualiza un proveedor IA y sincroniza su API key con el almacen seguro. */
@@ -84,13 +91,14 @@ export class AIProviderService {
   }
 
   /** Indica si la app puede operar con IA y cual proveedor debe usarse por defecto. */
-  async getSetupState(): Promise<{ hasConfiguredProvider: boolean; defaultProviderId: string | null }> {
+  async getSetupState(): Promise<AISetupState> {
     const providers = await this.list()
     const defaultProvider = providers.find((provider) => provider.isDefault) ?? null
 
     return {
       hasConfiguredProvider: providers.some((provider) => provider.enabled),
-      defaultProviderId: defaultProvider?.id ?? null
+      defaultProviderId: defaultProvider?.id ?? null,
+      secretStoreAvailable: await this.secrets.isAvailable()
     }
   }
 
@@ -124,7 +132,7 @@ export class AIProviderService {
 
     if (fallback) return toAIProviderDto(fallback)
 
-    return this.getEnvProvider('deepseek')
+    return this.getFirstEnvProvider()
   }
 
   /** Obtiene el secreto real desde keytar o desde .env para proveedores virtuales. */
@@ -190,5 +198,17 @@ export class AIProviderService {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }
+  }
+
+  /** Devuelve el primer proveedor configurado por .env respetando el orden oficial. */
+  private getFirstEnvProvider(): AIProviderDto | null {
+    for (const type of AI_PROVIDER_TYPES) {
+      const provider = this.getEnvProvider(type)
+      if (provider) {
+        return provider
+      }
+    }
+
+    return null
   }
 }

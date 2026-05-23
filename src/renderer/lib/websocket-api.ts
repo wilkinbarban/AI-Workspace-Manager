@@ -153,14 +153,12 @@ function getClient(): WebSocketApiClient {
 /** Adaptador AppApi para navegador: cada llamada viaja por WebSocket al servidor local. */
 export const webSocketApi: AppApi = {
   projects: {
-    openProject: async () => {
-      const projectPath = prompt(
-        'Introduce la ruta absoluta del directorio del proyecto que deseas agregar (ej. /home/usuario/workspace/mi-proyecto):'
-      )
-      if (!projectPath) {
+    openProject: async (projectPath?: string) => {
+      const normalizedPath = projectPath?.trim()
+      if (!normalizedPath) {
         return null
       }
-      return getClient().sendRequest(IPC_CHANNELS.projects.openProject, projectPath)
+      return getClient().sendRequest(IPC_CHANNELS.projects.openProject, normalizedPath)
     },
     getProjects: () => getClient().sendRequest(IPC_CHANNELS.projects.getProjects),
     cleanInactiveProjects: (activeProjectId) =>

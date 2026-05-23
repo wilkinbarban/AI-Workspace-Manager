@@ -41,6 +41,8 @@ export function useWorkspaceManager() {
   const [usageSummary, setUsageSummary] = useState<AIUsageSummaryDto | null>(null)
   /** Bandera historica para detectar falta de configuracion inicial de IA. */
   const [setupRequired, setSetupRequired] = useState(false)
+  /** Disponibilidad real del almacen seguro nativo usado para persistir API keys. */
+  const [secretStoreAvailable, setSecretStoreAvailable] = useState(true)
   /** Ultima respuesta estructurada de IA mostrada en el dashboard. */
   const [aiAnswer, setAiAnswer] = useState<AIProjectAnswer | null>(null)
   /** Estado global de trabajo para deshabilitar botones durante operaciones IPC. */
@@ -89,6 +91,7 @@ export function useWorkspaceManager() {
     setProviders(nextProviders)
     setProviderManifests(nextManifests)
     setSetupRequired(!setupState.hasConfiguredProvider)
+    setSecretStoreAvailable(setupState.secretStoreAvailable)
     setUsageSummary(usage)
   }, [])
 
@@ -106,8 +109,12 @@ export function useWorkspaceManager() {
   }, [])
 
   useEffect(() => {
-    void refreshProjects()
-    void refreshProviders()
+    void refreshProjects().catch((initialError) => {
+      setError(initialError instanceof Error ? initialError.message : 'No se pudieron cargar los proyectos.')
+    })
+    void refreshProviders().catch((initialError) => {
+      setError(initialError instanceof Error ? initialError.message : 'No se pudo cargar la configuración de IA.')
+    })
   }, [refreshProjects, refreshProviders])
 
   useEffect(() => {
@@ -142,9 +149,9 @@ export function useWorkspaceManager() {
     }
   }, [])
 
-  /** Abre un proyecto con dialogo nativo y dispara el primer escaneo automatico. */
-  const openProject = useCallback(async () => {
-    const project = await run(() => appApi.projects.openProject(), 'Proyecto abierto. Analizando automáticamente...')
+  /** Abre o importa un proyecto y dispara el primer escaneo automatico. */
+  const openProject = useCallback(async (projectPath?: string) => {
+    const project = await run(() => appApi.projects.openProject(projectPath), 'Proyecto abierto. Analizando automáticamente...')
 
     if (project) {
       setSelectedProjectId(project.id)
@@ -155,7 +162,11 @@ export function useWorkspaceManager() {
         setLatestScan(scan)
         await refreshProjectData(project.id)
       }
+
+      return true
     }
+
+    return false
   }, [refreshProjectData, refreshProjects, run])
 
   /** Recalcula el analisis local del proyecto seleccionado. */
@@ -353,6 +364,7 @@ export function useWorkspaceManager() {
     providerManifests,
     usageSummary,
     setupRequired,
+    secretStoreAvailable,
     activeProvider,
     aiAnswer,
     isBusy,

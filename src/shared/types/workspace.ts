@@ -156,6 +156,13 @@ export interface AIProviderManifest {
   status: 'ready' | 'prepared' | 'experimental'
 }
 
+/** Estado de preparacion IA usado por la UI para decidir entre keytar y .env. */
+export interface AISetupState {
+  hasConfiguredProvider: boolean
+  defaultProviderId: string | null
+  secretStoreAvailable: boolean
+}
+
 /** Registro individual de consumo de tokens y costo estimado o real. */
 export interface AIUsageDto {
   id: string
